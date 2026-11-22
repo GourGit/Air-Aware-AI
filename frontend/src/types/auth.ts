@@ -2,12 +2,15 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  avatar_url: string | null;
-  location: UserLocation | null;
-  health_profile: HealthProfile | null;
-  is_onboarded: boolean;
-  created_at: string;
-  updated_at: string;
+  displayName?: string;
+  avatar_url?: string | null;
+  location?: UserLocation | null;
+  health_profile?: HealthProfile | null;
+  is_onboarded?: boolean;
+  role?: string;
+  isActive?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserLocation {

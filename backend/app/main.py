@@ -34,24 +34,38 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup / shutdown lifecycle events."""
-    # Startup
     setup_logging()
     logger.info("Starting AirAware AI API …")
 
-    # Initialise Redis pool
+    # Initialise Redis pool with graceful fallback
     try:
         await init_redis()
         logger.info("Redis connection pool established")
     except Exception:
-        logger.warning("Redis unavailable — features that need it will degrade gracefully")
+        logger.warning("Redis unavailable — running in local memory mode without caching")
 
-    logger.info("AirAware AI API ready ✓")
+    # Check Database connection with graceful fallback
+    try:
+        from sqlalchemy import text
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("PostgreSQL connection established")
+    except Exception as exc:
+        logger.warning("PostgreSQL not detected or still booting (%s). Backend running in local resilient mode.", exc)
+
+    logger.info("AirAware AI API ready on http://localhost:8000 ✓")
     yield
 
     # Shutdown
     logger.info("Shutting down AirAware AI API …")
-    await close_redis()
-    await engine.dispose()
+    try:
+        await close_redis()
+    except Exception:
+        pass
+    try:
+        await engine.dispose()
+    except Exception:
+        pass
     logger.info("Cleanup complete, goodbye.")
 
 

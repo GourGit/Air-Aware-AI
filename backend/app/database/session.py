@@ -15,13 +15,22 @@ from app.config import get_settings
 
 _settings = get_settings()
 
+engine_kwargs: dict = {
+    "echo": _settings.debug,
+}
+
+# PostgreSQL / Network connection pooling
+if "sqlite" not in _settings.DATABASE_URL:
+    engine_kwargs.update({
+        "pool_size": 20,
+        "max_overflow": 10,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    })
+
 engine: AsyncEngine = create_async_engine(
     _settings.DATABASE_URL,
-    echo=_settings.debug,
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
-    pool_recycle=300,
+    **engine_kwargs,
 )
 
 async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(

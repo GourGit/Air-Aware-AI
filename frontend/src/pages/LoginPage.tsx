@@ -24,6 +24,7 @@ export default function LoginPage() {
       const mockUser = {
         id: 'usr-demo-1234',
         email: email || 'user@airaware.ai',
+        name: 'Aarav Sharma',
         displayName: 'Aarav Sharma',
         role: 'user',
         isActive: true,
@@ -43,6 +44,7 @@ export default function LoginPage() {
     const mockUser = {
       id: 'usr-demo-1234',
       email: 'aarav.sharma@example.com',
+      name: 'Aarav Sharma',
       displayName: 'Aarav Sharma',
       role: 'user',
       isActive: true,

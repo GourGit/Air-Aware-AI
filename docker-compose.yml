@@ -1,9 +1,9 @@
 version: "3.9"
 
 services:
-  # PostgreSQL Database
+  # PostgreSQL 18 Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: airaware-postgres
     restart: unless-stopped
     environment:

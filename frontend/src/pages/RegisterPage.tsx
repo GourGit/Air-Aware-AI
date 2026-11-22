@@ -26,6 +26,7 @@ export default function RegisterPage() {
     const newUser = {
       id: 'usr-new-1234',
       email,
+      name: displayName,
       displayName,
       role: 'user',
       isActive: true,
