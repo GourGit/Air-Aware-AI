@@ -1,0 +1,43 @@
+# AirAware AI Backend Dependencies
+# ==================================
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Data Validation
+pydantic[email]>=2.5.0
+pydantic-settings>=2.1.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.23
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# Cache / Message Broker
+redis>=5.0.0
+
+# HTTP Client
+httpx>=0.25.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# AI / LLM
+langgraph>=0.0.40
+langchain-core>=0.1.0
+langchain-openai>=0.0.5
+
+# Scheduling
+apscheduler>=3.10.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+tenacity>=8.2.0

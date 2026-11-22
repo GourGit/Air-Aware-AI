@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Primary palette */
+    --color-charcoal: 16 27 32;
+    --color-forest: 23 61 59;
+    --color-mint: 37 184 154;
+    --color-mist: 230 244 239;
+    --color-white: 255 255 255;
+    --color-slate: 113 129 138;
+    --color-muted: 245 248 247;
+    --color-border: 220 230 226;
+
+    /* AQI category colors */
+    --color-aqi-good: 0 153 102;
+    --color-aqi-satisfactory: 255 222 51;
+    --color-aqi-moderate: 255 153 51;
+    --color-aqi-poor: 204 0 51;
+    --color-aqi-very-poor: 102 0 153;
+    --color-aqi-severe: 126 0 35;
+
+    /* Semantic tokens — light theme */
+    --bg-primary: 255 255 255;
+    --bg-secondary: 245 248 247;
+    --bg-tertiary: 230 244 239;
+    --bg-inverse: 16 27 32;
+
+    --text-primary: 16 27 32;
+    --text-secondary: 113 129 138;
+    --text-inverse: 255 255 255;
+    --text-accent: 37 184 154;
+
+    --border-default: 220 230 226;
+    --border-focus: 37 184 154;
+
+    --shadow-color: 0 0 0;
+  }
+
+  .dark {
+    --bg-primary: 16 27 32;
+    --bg-secondary: 23 35 40;
+    --bg-tertiary: 23 61 59;
+    --bg-inverse: 245 248 247;
+
+    --text-primary: 230 244 239;
+    --text-secondary: 150 165 172;
+    --text-inverse: 16 27 32;
+    --text-accent: 37 184 154;
+
+    --border-default: 40 55 60;
+    --border-focus: 37 184 154;
+
+    --shadow-color: 0 0 0;
+  }
+
+  /* Base element styles */
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-white text-charcoal font-sans;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  .dark body {
+    @apply bg-charcoal text-mist;
+  }
+
+  /* Focus ring utility */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-mint;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate/50;
+  }
+}
+
+@layer components {
+  .text-gradient {
+    @apply bg-gradient-to-r from-mint to-forest bg-clip-text text-transparent;
+  }
+
+  .card-base {
+    @apply bg-white dark:bg-charcoal/80 rounded-xl border border-border dark:border-forest/30 shadow-card;
+  }
+
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}
