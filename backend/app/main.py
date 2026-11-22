@@ -44,12 +44,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         logger.warning("Redis unavailable — running in local memory mode without caching")
 
-    # Check Database connection with graceful fallback
+    # Check Database connection with graceful fallback & ensure tables exist
     try:
         from sqlalchemy import text
-        async with engine.connect() as conn:
+        from app.database.base import Base
+        import app.models  # noqa: F401
+        async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
-        logger.info("PostgreSQL connection established")
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("PostgreSQL connection established and schema verified")
     except Exception as exc:
         logger.warning("PostgreSQL not detected or still booting (%s). Backend running in local resilient mode.", exc)
 

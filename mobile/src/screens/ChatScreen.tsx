@@ -11,60 +11,67 @@ import {
   Platform,
 } from 'react-native';
 import api from '../config/api';
+import { useChatStore } from '../store/chatStore';
+import { useMobileAuthStore } from '../store/authStore';
 import type { ChatMessage } from '../types';
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content:
-        'Hello! I am your AirAware AI assistant powered by LangGraph multi-agent intelligence. How can I help with your routine, transit, or air quality questions today?',
-      timestamp: 'Just now',
-      agent: 'CoordinatorAgent',
-    },
-  ]);
+  const messages = useChatStore((state) => state.messages);
+  const addMessage = useChatStore((state) => state.addMessage);
+  const user = useMobileAuthStore((state) => state.user);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (overrideText?: string) => {
+    const textToSend = overrideText || input;
+    if (!textToSend.trim() || loading) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: textToSend,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    if (!overrideText) {
+      addMessage(userMsg);
+      setInput('');
+    }
     setLoading(true);
+    setLastFailedMessage(null);
 
     try {
       const res = await api.post('/chat/message', {
-        message: userMsg.content,
-        user_context: { city: 'Delhi', user_id: 'mobile-user' },
+        message: textToSend,
+        user_context: {
+          city: 'Delhi',
+          user_id: user?.id || 'anonymous-user',
+          user_email: user?.email,
+        },
       });
 
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: res.data.response || res.data.message || 'Here is the environmental recommendation for your area.',
+        content: res.data.response || res.data.message || 'Environmental guidance retrieved.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         agent: res.data.agent_name || 'SynthesizerAgent',
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      addMessage(assistantMsg);
     } catch (err) {
-      // Graceful offline mock response
-      const fallbackMsg: ChatMessage = {
+      console.warn('Chat assistant request failed:', err);
+      setLastFailedMessage(textToSend);
+      const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `Based on current Delhi conditions (AQI 342 - Very Poor), I recommend shifting strenuous outdoor workouts indoors. If commuting, opting for Delhi Metro instead of a private car avoids approx 320g of CO2e and reduces exposure to roadside ultrafine particles.`,
+        content:
+          'Service is currently unavailable. Unable to reach live LangGraph agent backend. Please check connection and tap Retry below.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        agent: 'RoutineAgent',
+        agent: 'SystemAlert',
       };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      addMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -90,10 +97,18 @@ export default function ChatScreen() {
             style={[
               styles.messageBubble,
               item.role === 'user' ? styles.userBubble : styles.assistantBubble,
+              item.agent === 'SystemAlert' && styles.alertBubble,
             ]}
           >
             {item.agent && (
-              <Text style={styles.agentBadge}>{item.agent}</Text>
+              <Text
+                style={[
+                  styles.agentBadge,
+                  item.agent === 'SystemAlert' && styles.alertBadge,
+                ]}
+              >
+                {item.agent}
+              </Text>
             )}
             <Text
               style={[
@@ -108,6 +123,19 @@ export default function ChatScreen() {
         )}
       />
 
+      {lastFailedMessage && (
+        <View style={styles.retryBar}>
+          <Text style={styles.retryText}>Last request failed.</Text>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => sendMessage(lastFailedMessage)}
+            disabled={loading}
+          >
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
@@ -118,7 +146,7 @@ export default function ChatScreen() {
         />
         <TouchableOpacity
           style={[styles.sendButton, loading && styles.sendButtonDisabled]}
-          onPress={sendMessage}
+          onPress={() => sendMessage()}
           disabled={loading}
         >
           {loading ? (
@@ -172,11 +200,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#DCE6E2',
   },
+  alertBubble: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#F87171',
+  },
   agentBadge: {
     fontSize: 10,
     fontWeight: '700',
     color: '#25B89A',
     marginBottom: 4,
+  },
+  alertBadge: {
+    color: '#DC2626',
   },
   messageText: {
     fontSize: 14,
@@ -193,6 +228,32 @@ const styles = StyleSheet.create({
     color: '#71818A',
     alignSelf: 'flex-end',
     marginTop: 4,
+  },
+  retryBar: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderColor: '#EF4444',
+  },
+  retryText: {
+    color: '#B91C1C',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  retryBtn: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  retryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   inputContainer: {
     flexDirection: 'row',

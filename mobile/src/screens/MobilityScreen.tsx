@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TextInput, StyleSheet } from 'react-native';
 
 export default function MobilityScreen() {
   const [distance, setDistance] = useState('12');
@@ -35,7 +35,9 @@ export default function MobilityScreen() {
     },
   ];
 
-  const distNum = parseFloat(distance) || 0;
+  const parsedDist = parseFloat(distance.trim());
+  const isValid = !isNaN(parsedDist) && isFinite(parsedDist) && parsedDist >= 0;
+  const distNum = isValid ? parsedDist : 0;
 
   return (
     <ScrollView style={styles.container}>
@@ -49,40 +51,53 @@ export default function MobilityScreen() {
       <View style={styles.inputCard}>
         <Text style={styles.inputLabel}>Trip Commute Distance (km):</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, !isValid && styles.inputError]}
           keyboardType="numeric"
           value={distance}
           onChangeText={setDistance}
-          placeholder="Enter distance in km"
+          placeholder="Enter distance (e.g. 12)"
         />
+        {!isValid && (
+          <Text style={styles.errorText}>
+            Please enter a valid, non-negative numerical distance in kilometers.
+          </Text>
+        )}
       </View>
 
       <View style={styles.modeList}>
-        {modes.map((m, idx) => {
-          const totalEmissions = Math.round(m.factor * distNum);
-          return (
-            <View key={idx} style={styles.modeCard}>
-              <View style={styles.modeHeader}>
-                <Text style={styles.modeName}>{m.name}</Text>
-                <Text style={[styles.emissionsNum, { color: m.color }]}>
-                  {totalEmissions} g CO₂e
-                </Text>
-              </View>
+        {isValid ? (
+          modes.map((m, idx) => {
+            const totalEmissions = Math.round(m.factor * distNum);
+            return (
+              <View key={idx} style={styles.modeCard}>
+                <View style={styles.modeHeader}>
+                  <Text style={styles.modeName}>{m.name}</Text>
+                  <Text style={[styles.emissionsNum, { color: m.color }]}>
+                    {totalEmissions} g CO₂e
+                  </Text>
+                </View>
 
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Air Exposure Risk:</Text>
-                <Text style={styles.detailValue}>{m.exposure}</Text>
-              </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Air Exposure Risk:</Text>
+                  <Text style={styles.detailValue}>{m.exposure}</Text>
+                </View>
 
-              <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>CO₂e Avoided vs Private Car:</Text>
-                <Text style={styles.savingsValue}>
-                  {Math.max(0, Math.round((142.0 - m.factor) * distNum))} g avoided
-                </Text>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>CO₂e Avoided vs Private Car:</Text>
+                  <Text style={styles.savingsValue}>
+                    {Math.max(0, Math.round((142.0 - m.factor) * distNum))} g avoided
+                  </Text>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        ) : (
+          <View style={styles.placeholderCard}>
+            <Text style={styles.placeholderText}>
+              Enter a valid distance above to calculate and display transit emissions.
+            </Text>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -133,6 +148,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#101B20',
   },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    marginTop: 6,
+    fontWeight: '600',
+  },
   modeList: {
     gap: 12,
     marginBottom: 30,
@@ -143,6 +168,19 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: '#DCE6E2',
+  },
+  placeholderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#DCE6E2',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#71818A',
+    fontSize: 13,
+    textAlign: 'center',
   },
   modeHeader: {
     flexDirection: 'row',

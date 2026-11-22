@@ -52,7 +52,11 @@ api.interceptors.response.use(
       } catch {
         // Refresh failed — log out
         useAuthStore.getState().logout();
-        window.location.href = '/login';
+        const publicPaths = ['/', '/dashboard', '/air-quality', '/map', '/login', '/register'];
+        const isPublicPath = publicPaths.includes(window.location.pathname);
+        if (!isPublicPath) {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
     }

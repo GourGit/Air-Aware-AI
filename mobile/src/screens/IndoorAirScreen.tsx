@@ -14,23 +14,32 @@ export default function IndoorAirScreen() {
 
       {/* Score Card */}
       <View style={styles.scoreCard}>
-        <Text style={styles.scoreLabel}>INDOOR AIR HYGIENE SCORE</Text>
-        <Text style={styles.scoreValue}>78 / 100</Text>
-        <Text style={styles.scoreStatus}>Protected with HEPA Filtration</Text>
+        <Text style={styles.scoreLabel}>ESTIMATED INDOOR AIR HYGIENE SCORE</Text>
+        <Text style={styles.scoreValue}>{purifierOn ? '78' : '42'} / 100</Text>
+        <Text style={[styles.scoreStatus, !purifierOn && styles.scoreStatusOff]}>
+          {purifierOn ? 'Protected with HEPA Filtration' : 'Unprotected — Air Purifier is Off'}
+        </Text>
+      </View>
+
+      {/* Sample Guidance Notice */}
+      <View style={styles.sampleBanner}>
+        <Text style={styles.sampleBannerText}>
+          Sample Guidance: Connect room air sensors or live outdoor station feed to calibrate real-time indoor advisories.
+        </Text>
       </View>
 
       {/* Recommendations */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Real-time Guidance</Text>
+        <Text style={styles.cardTitle}>Sample Guidance & Scenarios</Text>
         <View style={styles.recommendationItem}>
-          <Text style={styles.recHeadline}>Outdoor Air is Very Poor (AQI 342)</Text>
+          <Text style={styles.recHeadline}>During Elevated Outdoor Inversion (e.g. AQI &gt; 300)</Text>
           <Text style={styles.recDescription}>
-            Do NOT open windows or natural ventilation vents this morning. Keep doors and balcony access sealed.
+            Do NOT open windows or natural ventilation vents during morning inversion hours. Keep doors and balcony access sealed.
           </Text>
         </View>
 
         <View style={styles.recommendationItem}>
-          <Text style={styles.recHeadline}>Cooking & Combustion Sources</Text>
+          <Text style={styles.recHeadline}>Cooking & Indoor Combustion Sources</Text>
           <Text style={styles.recDescription}>
             Operate kitchen exhaust chimney with high suction when frying or using spices. Minimize incense/dhoop burning.
           </Text>
@@ -39,18 +48,18 @@ export default function IndoorAirScreen() {
 
       {/* Device Management Toggle Cards */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Appliance Status</Text>
+        <Text style={styles.cardTitle}>Simulated Appliance Controls</Text>
         <View style={styles.deviceRow}>
           <View>
             <Text style={styles.deviceName}>HEPA Air Purifier</Text>
             <Text style={styles.deviceSub}>Living Room • CADR 380 m³/h</Text>
           </View>
           <TouchableOpacity
-            style={[styles.toggleBtn, purifierOn && styles.toggleBtnActive]}
+            style={[styles.toggleBtn, purifierOn ? styles.toggleBtnActive : styles.toggleBtnOff]}
             onPress={() => setPurifierOn(!purifierOn)}
           >
             <Text style={[styles.toggleBtnText, purifierOn && styles.toggleBtnTextActive]}>
-              {purifierOn ? 'Running' : 'Off'}
+              {purifierOn ? 'Running' : 'Turn On'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -58,7 +67,7 @@ export default function IndoorAirScreen() {
         <View style={styles.deviceRow}>
           <View>
             <Text style={styles.deviceName}>Natural Ventilation (Windows)</Text>
-            <Text style={styles.deviceSub}>Recommendation: Closed</Text>
+            <Text style={styles.deviceSub}>Guidance: Keep Closed</Text>
           </View>
           <TouchableOpacity
             style={[styles.toggleBtn, ventilationOpen && styles.toggleBtnWarning]}
@@ -82,7 +91,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: 22,
@@ -94,11 +103,24 @@ const styles = StyleSheet.create({
     color: '#71818A',
     marginTop: 4,
   },
+  sampleBanner: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  sampleBannerText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   scoreCard: {
     backgroundColor: '#173D3B',
     borderRadius: 20,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   scoreLabel: {
     fontSize: 11,
@@ -115,7 +137,10 @@ const styles = StyleSheet.create({
   scoreStatus: {
     fontSize: 13,
     color: '#DCE6E2',
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  scoreStatusOff: {
+    color: '#EF4444',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -175,6 +200,10 @@ const styles = StyleSheet.create({
   toggleBtnActive: {
     backgroundColor: '#25B89A',
     borderColor: '#25B89A',
+  },
+  toggleBtnOff: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
   },
   toggleBtnWarning: {
     backgroundColor: '#CC0033',

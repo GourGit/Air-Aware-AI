@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Wind, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/auth-store';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state as any)?.from?.pathname || '/dashboard';
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const [email, setEmail] = useState('');
@@ -30,7 +32,7 @@ export default function LoginPage() {
         isActive: true,
       };
       setAuth(mockUser, 'mock-jwt-access-token', 'mock-jwt-refresh-token');
-      navigate('/dashboard');
+      navigate(from, { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Login failed');
     } finally {
@@ -50,7 +52,7 @@ export default function LoginPage() {
       isActive: true,
     };
     setAuth(mockUser, 'mock-jwt-access-token', 'mock-jwt-refresh-token');
-    navigate('/dashboard');
+    navigate(from, { replace: true });
   };
 
   return (

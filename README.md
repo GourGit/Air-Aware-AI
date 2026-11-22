@@ -39,7 +39,13 @@ AirAware AI is configured for **PostgreSQL 18** (and supports 16, 17, and offlin
    ```env
    DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/airaware_db
    ```
-3. Run `run_backend.bat`. The backend automatically connects and initializes.
+3. Apply database schema migrations:
+   ```bash
+   cd backend
+   python -m alembic upgrade head
+   ```
+   *(Alternatively, `run_backend.bat` runs this automatically on startup, and the FastAPI application lifespan verifies tables upon connection).*
+4. Run `run_backend.bat` to launch the API.
 
 > **Resilient Local Mode**: If PostgreSQL or Redis is not running or offline, the backend **never crashes**. It automatically activates resilient mode, serving live CPCB CAAQMS sensor telemetry and calculations.
 

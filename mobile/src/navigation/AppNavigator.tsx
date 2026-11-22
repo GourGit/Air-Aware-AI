@@ -8,15 +8,16 @@ import MobilityScreen from '../screens/MobilityScreen';
 import ImpactScreen from '../screens/ImpactScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import AuthScreen from '../screens/AuthScreen';
+import { useMobileAuthStore } from '../store/authStore';
 
 export type TabKey = 'dashboard' | 'assistant' | 'routine' | 'mobility' | 'indoor' | 'impact' | 'community';
 
 export default function AppNavigator() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const isAuthenticated = useMobileAuthStore((state) => state.isAuthenticated);
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
 
   if (!isAuthenticated) {
-    return <AuthScreen onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <AuthScreen onLoginSuccess={() => setActiveTab('dashboard')} />;
   }
 
   const renderActiveScreen = () => {

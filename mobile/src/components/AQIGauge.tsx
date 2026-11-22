@@ -6,6 +6,7 @@ interface AQIGaugeProps {
   category: string;
   color: string;
   prominentPollutant: string;
+  isLive?: boolean;
 }
 
 export const AQIGauge: React.FC<AQIGaugeProps> = ({
@@ -13,14 +14,19 @@ export const AQIGauge: React.FC<AQIGaugeProps> = ({
   category,
   color,
   prominentPollutant,
+  isLive = true,
 }) => {
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.subTitle}>OFFICIAL CPCB NAQI</Text>
+        <Text style={styles.subTitle}>
+          {isLive ? 'OFFICIAL CPCB NAQI' : 'BASELINE / SAMPLE AQI'}
+        </Text>
         <View style={styles.badge}>
-          <View style={[styles.dot, { backgroundColor: color }]} />
-          <Text style={styles.badgeText}>Live CAAQMS</Text>
+          <View style={[styles.dot, { backgroundColor: isLive ? color : '#71818A' }]} />
+          <Text style={[styles.badgeText, !isLive && styles.offlineBadgeText]}>
+            {isLive ? 'Live CAAQMS' : 'Demonstration Data'}
+          </Text>
         </View>
       </View>
 
@@ -77,6 +83,9 @@ const styles = StyleSheet.create({
     color: '#25B89A',
     fontSize: 11,
     fontWeight: '600',
+  },
+  offlineBadgeText: {
+    color: '#FFCC00',
   },
   readingRow: {
     flexDirection: 'row',

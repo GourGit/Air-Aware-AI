@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Menu,
   Search,
@@ -19,6 +19,7 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuToggle }: HeaderProps) {
+  const location = useLocation();
   const { theme, toggleTheme } = useThemeStore();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -106,7 +107,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
             <span className="hidden sm:inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-muted dark:bg-forest/20 text-slate">
               Public AQI View
             </span>
-            <Link to="/login">
+            <Link to="/login" state={{ from: location }}>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5">
                 <LogIn className="w-3.5 h-3.5" />
                 <span>Sign In</span>

@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 
 export default function RoutineScreen() {
-  const [routineItems, setRoutineItems] = useState([
+  const [routineItems] = useState([
     {
       time: '06:30 AM',
       title: 'Morning Physical Exercise',
-      risk: 'High Risk (AQI 342)',
+      risk: 'High Morning Exposure (Sample)',
       advice: 'Indoor Yoga & Stretching recommended. Avoid outdoor running or cycling due to ground inversion.',
       isOutdoor: false,
     },
     {
       time: '08:45 AM',
       title: 'Morning Commute',
-      risk: 'Moderate Risk',
+      risk: 'Peak Commute Traffic',
       advice: 'Metro recommended. If taking auto/car, ensure vehicle cabin filter is active and recirculate air.',
       isOutdoor: true,
     },
     {
       time: '01:00 PM',
       title: 'Lunchtime & Daylight Walk',
-      risk: 'Acceptable Window (AQI 220)',
+      risk: 'Lower Boundary Dispersion',
       advice: 'Atmospheric boundary layer has expanded. Short 15-min walk permissible with N95 mask.',
       isOutdoor: true,
     },
@@ -37,7 +37,13 @@ export default function RoutineScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Pollution-Aware Daily Routine</Text>
-        <Text style={styles.subtitle}>Optimized hourly schedule based on live CPCB forecasts</Text>
+        <Text style={styles.subtitle}>Sample optimized hourly schedule based on meteorological inversion patterns</Text>
+      </View>
+
+      <View style={styles.sampleBanner}>
+        <Text style={styles.sampleBannerText}>
+          Demonstration Schedule: Connect local monitoring station to calibrate live forecast validity periods.
+        </Text>
       </View>
 
       <View style={styles.timeline}>
@@ -67,7 +73,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   title: {
     fontSize: 22,
@@ -78,6 +84,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#71818A',
     marginTop: 4,
+  },
+  sampleBanner: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  sampleBannerText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '600',
   },
   timeline: {
     gap: 12,

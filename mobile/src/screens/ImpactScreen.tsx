@@ -9,37 +9,44 @@ export default function ImpactScreen() {
         <Text style={styles.subtitle}>Verified carbon avoidance & urban health contribution</Text>
       </View>
 
+      {/* Demonstration Banner */}
+      <View style={styles.sampleBadge}>
+        <Text style={styles.sampleBadgeText}>
+          Demonstration Mode: Connect personal commute logging to track your verified savings
+        </Text>
+      </View>
+
       <View style={styles.summaryGrid}>
         <View style={styles.statBox}>
           <Text style={styles.statNum}>42.8</Text>
-          <Text style={styles.statUnit}>kg CO₂e</Text>
-          <Text style={styles.statLabel}>Total Emissions Avoided</Text>
+          <Text style={styles.statUnit}>kg CO₂e (Sample)</Text>
+          <Text style={styles.statLabel}>Sample Emissions Avoided</Text>
         </View>
 
         <View style={styles.statBox}>
           <Text style={styles.statNum}>34</Text>
-          <Text style={styles.statUnit}>Trips</Text>
-          <Text style={styles.statLabel}>Clean Commutes</Text>
+          <Text style={styles.statUnit}>Trips (Sample)</Text>
+          <Text style={styles.statLabel}>Clean Commutes Logged</Text>
         </View>
       </View>
 
       {/* Tree Equivalent Card */}
       <View style={styles.treeCard}>
-        <Text style={styles.treeTitle}>Ecological Equivalent</Text>
+        <Text style={styles.treeTitle}>Ecological Impact Model</Text>
         <Text style={styles.treeDescription}>
-          Your avoided carbon emissions this month equal the photosynthetic absorption capacity of{' '}
-          <Text style={styles.boldGreen}>2.1 mature urban trees</Text> over an entire calendar year.
+          In this sample demonstration, avoiding 42.8 kg of CO₂e corresponds to the photosynthetic absorption of{' '}
+          <Text style={styles.boldGreen}>2.1 mature urban trees</Text> over a full year according to Central Electricity Authority (CEA) benchmarks.
         </Text>
       </View>
 
       {/* Badges / Milestones */}
       <View style={styles.card}>
-        <Text style={styles.cardHeader}>Unlocked Milestones</Text>
+        <Text style={styles.cardHeader}>Milestones Preview</Text>
         <View style={styles.badgeRow}>
           <View style={styles.badgeItem}>
             <Text style={styles.badgeIcon}>🌱</Text>
             <Text style={styles.badgeTitle}>First 10kg</Text>
-            <Text style={styles.badgeStatus}>Achieved</Text>
+            <Text style={styles.badgeStatus}>Sample Preview</Text>
           </View>
           <View style={styles.badgeItem}>
             <Text style={styles.badgeIcon}>🚇</Text>
@@ -49,7 +56,7 @@ export default function ImpactScreen() {
           <View style={styles.badgeItem}>
             <Text style={styles.badgeIcon}>🌬️</Text>
             <Text style={styles.badgeTitle}>Air Guardian</Text>
-            <Text style={styles.badgeStatus}>Active</Text>
+            <Text style={styles.badgeStatus}>Preview</Text>
           </View>
         </View>
       </View>
@@ -65,7 +72,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   title: {
     fontSize: 22,
@@ -76,6 +83,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#71818A',
     marginTop: 4,
+  },
+  sampleBadge: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+  },
+  sampleBadgeText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '600',
   },
   summaryGrid: {
     flexDirection: 'row',

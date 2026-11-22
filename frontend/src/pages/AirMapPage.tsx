@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Navigation, Info, ExternalLink } from 'lucide-react';
-import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
+import { MapPin, Navigation, AlertTriangle, RefreshCw } from 'lucide-react';
+import { APIProvider, Map, AdvancedMarker, Marker } from '@vis.gl/react-google-maps';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { airQualityService, type Station } from '@/services/airQuality';
 
@@ -8,9 +8,15 @@ export default function AirMapPage() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<string>('All');
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapError, setMapError] = useState(false);
 
   const googleMapsApiKey = ((import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '').trim();
-  const hasGoogleMaps = Boolean(googleMapsApiKey && googleMapsApiKey !== 'your_google_maps_key_here');
+  const mapId = ((import.meta as any).env?.VITE_GOOGLE_MAPS_MAP_ID || '').trim() || undefined;
+  const hasKey = Boolean(googleMapsApiKey && googleMapsApiKey !== 'your_google_maps_key_here');
+
+  // Google Maps is only active after confirmed successful load without script or auth errors
+  const isGoogleMapsActive = Boolean(hasKey && mapLoaded && !mapError);
 
   useEffect(() => {
     airQualityService.getStations().then((data) => {
@@ -68,43 +74,64 @@ export default function AirMapPage() {
                 <span>Coverage: India National CAAQMS Network</span>
               </div>
               <div className="bg-white/90 dark:bg-charcoal/90 backdrop-blur px-3 py-1.5 rounded-xl border border-border dark:border-forest/40 shadow-sm text-xs font-semibold text-slate pointer-events-auto">
-                {hasGoogleMaps ? 'Google Maps Mode' : 'Interactive Geospatial Canvas'} ({filteredStations.length} Stations)
+                {isGoogleMapsActive ? 'Google Maps Mode' : hasKey && !mapError ? 'Loading Google Maps...' : 'Interactive Geospatial Canvas'} ({filteredStations.length} Stations)
               </div>
             </div>
 
-            {/* Map Rendering Body */}
-            {hasGoogleMaps ? (
-              <div className="absolute inset-0">
-                <APIProvider apiKey={googleMapsApiKey}>
+            {/* Provider wrapper mounted when key is present to track load/error states */}
+            {hasKey && (
+              <div className={isGoogleMapsActive ? 'absolute inset-0' : 'hidden'}>
+                <APIProvider
+                  apiKey={googleMapsApiKey}
+                  onLoad={() => {
+                    setMapLoaded(true);
+                    setMapError(false);
+                  }}
+                  onError={(err) => {
+                    console.warn('Google Maps script load error, falling back to canvas:', err);
+                    setMapError(true);
+                  }}
+                >
                   <Map
                     defaultCenter={{ lat: 21.7679, lng: 78.8718 }}
                     defaultZoom={5}
-                    mapId="airaware-national-map"
+                    mapId={mapId}
                     gestureHandling="greedy"
                     disableDefaultUI={false}
                     className="w-full h-full"
                   >
-                    {filteredStations.map((s) => (
-                      <AdvancedMarker
-                        key={s.id}
-                        position={{ lat: s.latitude, lng: s.longitude }}
-                        onClick={() => setSelectedStation(s)}
-                        title={s.name}
-                      >
-                        <div
-                          className="px-2 py-1 rounded-full text-[11px] font-bold text-white shadow-xl flex items-center gap-1 border-2 border-white transform transition-transform hover:scale-125 cursor-pointer"
-                          style={{ backgroundColor: s.color }}
+                    {filteredStations.map((s) =>
+                      mapId ? (
+                        <AdvancedMarker
+                          key={s.id}
+                          position={{ lat: s.latitude, lng: s.longitude }}
+                          onClick={() => setSelectedStation(s)}
+                          title={`${s.name} (AQI ${s.aqi})`}
                         >
-                          <MapPin className="w-3 h-3" />
-                          <span>{s.aqi}</span>
-                        </div>
-                      </AdvancedMarker>
-                    ))}
+                          <div
+                            className="px-2 py-1 rounded-full text-[11px] font-bold text-white shadow-xl flex items-center gap-1 border-2 border-white transform transition-transform hover:scale-125 cursor-pointer"
+                            style={{ backgroundColor: s.color }}
+                          >
+                            <MapPin className="w-3 h-3" />
+                            <span>{s.aqi}</span>
+                          </div>
+                        </AdvancedMarker>
+                      ) : (
+                        <Marker
+                          key={s.id}
+                          position={{ lat: s.latitude, lng: s.longitude }}
+                          onClick={() => setSelectedStation(s)}
+                          title={`${s.name} (AQI ${s.aqi})`}
+                        />
+                      ),
+                    )}
                   </Map>
                 </APIProvider>
               </div>
-            ) : (
-              /* Canvas Fallback with interactive pins */
+            )}
+
+            {/* Render Canvas when Maps is not active (not configured, loading, or on error) */}
+            {!isGoogleMapsActive && (
               <div className="absolute inset-0 flex items-center justify-center p-8">
                 <div className="w-full h-full relative border border-dashed border-border dark:border-forest/30 rounded-xl bg-forest/5 flex items-center justify-center">
                   <span className="text-xs text-slate/40 uppercase tracking-widest font-mono">
@@ -146,9 +173,11 @@ export default function AirMapPage() {
             <div className="z-10 m-4 bg-white/90 dark:bg-charcoal/90 backdrop-blur p-3 rounded-xl border border-border dark:border-forest/40 text-[11px] text-slate max-w-md pointer-events-auto">
               <strong className="text-charcoal dark:text-white">CPCB Data Notice: </strong>
               Markers indicate verified Continuous Ambient Air Quality Monitoring Stations (CAAQMS).
-              {!hasGoogleMaps && (
+              {!isGoogleMapsActive && (
                 <span className="block mt-0.5 text-[10px] text-slate/80">
-                  (To activate vector/satellite Google Maps tiles, supply <code>VITE_GOOGLE_MAPS_API_KEY</code> in <code>frontend/.env</code>)
+                  {mapError
+                    ? '(Google Maps authentication or network issue detected — running in Coordinate Canvas mode)'
+                    : '(To activate Google Maps satellite/vector tiles, supply VITE_GOOGLE_MAPS_API_KEY in frontend/.env)'}
                 </span>
               )}
             </div>

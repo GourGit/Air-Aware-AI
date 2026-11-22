@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { AQIGauge } from '../components/AQIGauge';
@@ -16,19 +15,27 @@ import type { AirDataResponse } from '../types';
 export default function DashboardScreen() {
   const [data, setData] = useState<AirDataResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLive, setIsLive] = useState(true);
   const [city, setCity] = useState('Delhi');
+  const requestIdRef = useRef(0);
 
   const fetchAQI = async () => {
+    const currentReqId = ++requestIdRef.current;
     setLoading(true);
+
     try {
       const res = await api.get(`/air/current?city=${city}`);
-      setData(res.data);
+      if (currentReqId !== requestIdRef.current) return;
+      setData(res.data.data || res.data);
+      setIsLive(true);
     } catch (err) {
-      console.log('Using local fallback for mobile dashboard');
+      if (currentReqId !== requestIdRef.current) return;
+      console.warn('Backend unavailable, presenting sample demonstration baseline:');
+      setIsLive(false);
       setData({
         location: {
           city: city,
-          station_name: `${city} Central Monitoring Station`,
+          station_name: `${city} Baseline Station (Sample)`,
           latitude: 28.6139,
           longitude: 77.209,
         },
@@ -47,17 +54,19 @@ export default function DashboardScreen() {
           o3: { value: 38, unit: 'µg/m³', sub_index: 38 },
         },
         health_advisory: {
-          summary: 'High particulate matter detected. Thermal inversion trapping vehicular exhaust.',
+          summary: 'Sample Demonstration: Thermal inversion conditions typically elevate particulate concentrations.',
           precautions: [
-            'Avoid outdoor workouts between 6 AM and 10 AM',
+            'Reschedule outdoor cardio during morning peaks',
             'Wear N95/FFP2 respirator when commuting',
-            'Run indoor HEPA air purifier on medium/high',
+            'Keep vehicle AC in recirculate mode',
           ],
         },
         timestamp: new Date().toISOString(),
       });
     } finally {
-      setLoading(false);
+      if (currentReqId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -74,6 +83,15 @@ export default function DashboardScreen() {
         <Text style={styles.appTitle}>AirAware AI</Text>
         <Text style={styles.tagline}>Intelligent Urban Air Companion</Text>
       </View>
+
+      {/* Notice Banner when viewing Offline Sample Data */}
+      {!isLive && (
+        <View style={styles.sampleBanner}>
+          <Text style={styles.sampleBannerText}>
+            Notice: Offline Mode — Showing sample baseline data. Live CAAQMS connection is pending.
+          </Text>
+        </View>
+      )}
 
       {/* City Switcher Tabs */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.cityTabs}>
@@ -97,11 +115,14 @@ export default function DashboardScreen() {
             category={data.air_quality.category}
             color={data.air_quality.color}
             prominentPollutant={data.air_quality.prominent_pollutant}
+            isLive={isLive}
           />
 
           {/* Health Advisory Card */}
           <View style={styles.advisoryCard}>
-            <Text style={styles.advisoryTitle}>AI Health Advisory</Text>
+            <Text style={styles.advisoryTitle}>
+              {isLive ? 'AI Health Advisory' : 'Sample Health Guidance'}
+            </Text>
             <Text style={styles.advisorySummary}>{data.health_advisory.summary}</Text>
             {data.health_advisory.precautions.map((p, i) => (
               <View key={i} style={styles.precautionRow}>
@@ -112,7 +133,9 @@ export default function DashboardScreen() {
           </View>
 
           {/* Pollutant Sensor Grid */}
-          <Text style={styles.sectionTitle}>Sensor Telemetry (CPCB)</Text>
+          <Text style={styles.sectionTitle}>
+            {isLive ? 'Sensor Telemetry (CPCB CAAQMS)' : 'Sensor Telemetry (Sample Readings)'}
+          </Text>
           <View style={styles.pollutantGrid}>
             {Object.entries(data.pollutants).map(([name, item]) => (
               <PollutantCard
@@ -138,7 +161,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 6,
   },
   appTitle: {
     fontSize: 26,
@@ -150,8 +173,21 @@ const styles = StyleSheet.create({
     color: '#71818A',
     fontWeight: '500',
   },
+  sampleBanner: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 6,
+  },
+  sampleBannerText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   cityTabs: {
-    marginVertical: 12,
+    marginVertical: 10,
   },
   cityTab: {
     paddingHorizontal: 16,

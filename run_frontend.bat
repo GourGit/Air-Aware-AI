@@ -12,9 +12,15 @@ if not exist ".env" (
     copy .env.example .env >nul
 )
 
-if not exist "node_modules\" (
-    echo Installing frontend dependencies ^(one-time setup^)...
+if not exist "node_modules\.install_success" (
+    echo Installing frontend dependencies (one-time setup)...
     call npm install
+    if errorlevel 1 (
+        echo ERROR: npm install failed. Please check network and retry.
+        pause
+        exit /b 1
+    )
+    echo installed > "node_modules\.install_success"
 )
 
 echo Starting Vite Development Server on http://localhost:5173 ...
