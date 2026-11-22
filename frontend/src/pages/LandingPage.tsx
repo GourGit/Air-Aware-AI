@@ -72,14 +72,14 @@ export default function LandingPage() {
               transition={{ delay: 0.3 }}
               className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
             >
-              <Link to="/register">
+              <Link to="/dashboard">
                 <Button size="lg" className="w-full sm:w-auto bg-mint hover:bg-mint/90 text-white font-medium px-8 gap-2 shadow-lg shadow-mint/20">
-                  Explore Your Air <ArrowRight className="w-4 h-4" />
+                  Explore Live AQI <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
-              <Link to="/login">
+              <Link to="/map">
                 <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                  Interactive Live Demo
+                  Interactive Pollution Map
                 </Button>
               </Link>
             </motion.div>

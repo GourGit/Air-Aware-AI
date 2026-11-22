@@ -13,7 +13,7 @@ if not exist ".env" (
 )
 
 if not exist "node_modules\" (
-    echo Installing frontend dependencies (one-time setup)...
+    echo Installing frontend dependencies ^(one-time setup^)...
     call npm install
 )
 

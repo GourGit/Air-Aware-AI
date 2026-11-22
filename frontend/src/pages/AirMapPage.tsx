@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Filter, Navigation, Layers, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { MapPin, Navigation, Info, ExternalLink } from 'lucide-react';
+import { APIProvider, Map, AdvancedMarker } from '@vis.gl/react-google-maps';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Button } from '@/components/ui/button';
 import { airQualityService, type Station } from '@/services/airQuality';
 
 export default function AirMapPage() {
   const [stations, setStations] = useState<Station[]>([]);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<string>('All');
+
+  const googleMapsApiKey = ((import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY || '').trim();
+  const hasGoogleMaps = Boolean(googleMapsApiKey && googleMapsApiKey !== 'your_google_maps_key_here');
 
   useEffect(() => {
     airQualityService.getStations().then((data) => {
@@ -56,58 +59,98 @@ export default function AirMapPage() {
 
         {/* Map Workspace Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-          {/* Simulated Interactive Map Canvas */}
-          <div className="lg:col-span-2 rounded-2xl border border-border dark:border-forest/40 bg-muted/60 dark:bg-charcoal/80 overflow-hidden relative shadow-inner flex flex-col justify-between p-6">
-            <div className="flex justify-between items-start z-10">
-              <div className="bg-white/90 dark:bg-charcoal/90 backdrop-blur px-3 py-2 rounded-xl border border-border dark:border-forest/40 shadow-sm text-xs text-charcoal dark:text-white flex items-center gap-2">
+          {/* Main Map Container */}
+          <div className="lg:col-span-2 rounded-2xl border border-border dark:border-forest/40 bg-muted/60 dark:bg-charcoal/80 overflow-hidden relative shadow-inner flex flex-col justify-between">
+            {/* Top Overlay Bar */}
+            <div className="flex justify-between items-start z-10 p-4 pointer-events-none">
+              <div className="bg-white/90 dark:bg-charcoal/90 backdrop-blur px-3 py-2 rounded-xl border border-border dark:border-forest/40 shadow-sm text-xs text-charcoal dark:text-white flex items-center gap-2 pointer-events-auto">
                 <Navigation className="w-3.5 h-3.5 text-mint" />
                 <span>Coverage: India National CAAQMS Network</span>
               </div>
-              <div className="bg-white/90 dark:bg-charcoal/90 backdrop-blur px-3 py-1.5 rounded-xl border border-border dark:border-forest/40 shadow-sm text-xs font-semibold text-slate">
-                Showing {filteredStations.length} Stations
+              <div className="bg-white/90 dark:bg-charcoal/90 backdrop-blur px-3 py-1.5 rounded-xl border border-border dark:border-forest/40 shadow-sm text-xs font-semibold text-slate pointer-events-auto">
+                {hasGoogleMaps ? 'Google Maps Mode' : 'Interactive Geospatial Canvas'} ({filteredStations.length} Stations)
               </div>
             </div>
 
-            {/* Simulated Geographic Station Pins */}
-            <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
-              <div className="w-full h-full relative border border-dashed border-border dark:border-forest/30 rounded-xl bg-forest/5 flex items-center justify-center">
-                <span className="text-xs text-slate/40 uppercase tracking-widest font-mono">
-                  Google Maps Interactive Canvas Layer
-                </span>
-
-                {/* Render clickable station markers placed across grid */}
-                {filteredStations.map((s, idx) => {
-                  // Coordinate offset calculation for visual distribution
-                  const leftPercent = 20 + ((s.longitude - 72) / (89 - 72)) * 60;
-                  const topPercent = 80 - ((s.latitude - 12) / (29 - 12)) * 60;
-
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelectedStation(s)}
-                      style={{ left: `${leftPercent}%`, top: `${topPercent}%` }}
-                      className={`absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 group transition-transform ${
-                        selectedStation?.id === s.id ? 'scale-125 z-30' : 'hover:scale-110 z-20'
-                      }`}
-                    >
-                      <div
-                        className="px-2 py-1 rounded-full text-[11px] font-bold text-white shadow-lg flex items-center gap-1 border border-white/50"
-                        style={{ backgroundColor: s.color }}
+            {/* Map Rendering Body */}
+            {hasGoogleMaps ? (
+              <div className="absolute inset-0">
+                <APIProvider apiKey={googleMapsApiKey}>
+                  <Map
+                    defaultCenter={{ lat: 21.7679, lng: 78.8718 }}
+                    defaultZoom={5}
+                    mapId="airaware-national-map"
+                    gestureHandling="greedy"
+                    disableDefaultUI={false}
+                    className="w-full h-full"
+                  >
+                    {filteredStations.map((s) => (
+                      <AdvancedMarker
+                        key={s.id}
+                        position={{ lat: s.latitude, lng: s.longitude }}
+                        onClick={() => setSelectedStation(s)}
+                        title={s.name}
                       >
-                        <MapPin className="w-3 h-3" />
-                        <span>{s.aqi}</span>
-                      </div>
-                      <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-charcoal/90 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                        {s.name.split(',')[0]}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <div
+                          className="px-2 py-1 rounded-full text-[11px] font-bold text-white shadow-xl flex items-center gap-1 border-2 border-white transform transition-transform hover:scale-125 cursor-pointer"
+                          style={{ backgroundColor: s.color }}
+                        >
+                          <MapPin className="w-3 h-3" />
+                          <span>{s.aqi}</span>
+                        </div>
+                      </AdvancedMarker>
+                    ))}
+                  </Map>
+                </APIProvider>
               </div>
-            </div>
+            ) : (
+              /* Canvas Fallback with interactive pins */
+              <div className="absolute inset-0 flex items-center justify-center p-8">
+                <div className="w-full h-full relative border border-dashed border-border dark:border-forest/30 rounded-xl bg-forest/5 flex items-center justify-center">
+                  <span className="text-xs text-slate/40 uppercase tracking-widest font-mono">
+                    Official CAAQMS Geographic Coordinate Grid
+                  </span>
 
-            <div className="z-10 bg-white/90 dark:bg-charcoal/90 backdrop-blur p-3 rounded-xl border border-border dark:border-forest/40 text-[11px] text-slate max-w-sm">
-              <strong className="text-charcoal dark:text-white">Authoritative Notice:</strong> Markers indicate verified Continuous Ambient Air Quality Monitoring Stations (CAAQMS).
+                  {filteredStations.map((s) => {
+                    // Coordinate offset calculation for visual distribution across Indian subcontinent
+                    const leftPercent = 20 + ((s.longitude - 72) / (89 - 72)) * 60;
+                    const topPercent = 80 - ((s.latitude - 12) / (29 - 12)) * 60;
+
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedStation(s)}
+                        style={{ left: `${leftPercent}%`, top: `${topPercent}%` }}
+                        className={`absolute transform -translate-x-1/2 -translate-y-1/2 group transition-transform ${
+                          selectedStation?.id === s.id ? 'scale-125 z-30' : 'hover:scale-110 z-20'
+                        }`}
+                      >
+                        <div
+                          className="px-2 py-1 rounded-full text-[11px] font-bold text-white shadow-lg flex items-center gap-1 border border-white/50"
+                          style={{ backgroundColor: s.color }}
+                        >
+                          <MapPin className="w-3 h-3" />
+                          <span>{s.aqi}</span>
+                        </div>
+                        <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-charcoal/90 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                          {s.name.split(',')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom Overlay Notice */}
+            <div className="z-10 m-4 bg-white/90 dark:bg-charcoal/90 backdrop-blur p-3 rounded-xl border border-border dark:border-forest/40 text-[11px] text-slate max-w-md pointer-events-auto">
+              <strong className="text-charcoal dark:text-white">CPCB Data Notice: </strong>
+              Markers indicate verified Continuous Ambient Air Quality Monitoring Stations (CAAQMS).
+              {!hasGoogleMaps && (
+                <span className="block mt-0.5 text-[10px] text-slate/80">
+                  (To activate vector/satellite Google Maps tiles, supply <code>VITE_GOOGLE_MAPS_API_KEY</code> in <code>frontend/.env</code>)
+                </span>
+              )}
             </div>
           </div>
 

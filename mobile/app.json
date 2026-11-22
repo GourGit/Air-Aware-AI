@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "AirAware AI",
+    "slug": "airaware-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#101B20"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.airaware.ai"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#101B20"
+      },
+      "package": "com.airaware.ai"
+    },
+    "extra": {
+      "apiUrl": "http://10.0.2.2:8000/api/v1",
+      "apiFallbackUrl": "http://localhost:8000/api/v1"
+    }
+  }
+}

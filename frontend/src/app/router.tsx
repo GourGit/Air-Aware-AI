@@ -32,17 +32,17 @@ export function AppRouter() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        {/* Public routes */}
+        {/* Product A — Public AQI Website Routes (No registration required) */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/air-quality" element={<AirQualityPage />} />
+        <Route path="/map" element={<AirMapPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Protected routes */}
+        {/* Personalized & Advanced Capabilities (Protected or Onboarding) */}
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/air-quality" element={<AirQualityPage />} />
-          <Route path="/map" element={<AirMapPage />} />
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/routine" element={<RoutinePage />} />
           <Route path="/indoor" element={<IndoorAirPage />} />
@@ -52,7 +52,7 @@ export function AppRouter() {
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
 
-        {/* 404 */}
+        {/* 404 Not Found */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
