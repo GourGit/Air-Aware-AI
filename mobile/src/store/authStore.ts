@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useChatStore } from './chatStore';
 
 export interface MobileUser {
   id: string;
@@ -19,5 +20,9 @@ export const useMobileAuthStore = create<AuthState>((set) => ({
   user: null,
   token: null,
   setAuth: (user, token) => set({ user, token, isAuthenticated: true }),
-  logout: () => set({ user: null, token: null, isAuthenticated: false }),
+  logout: () => {
+    // Clear conversation messages so subsequent accounts cannot read previous user chat
+    useChatStore.getState().clearMessages();
+    set({ user: null, token: null, isAuthenticated: false });
+  },
 }));

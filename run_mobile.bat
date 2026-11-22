@@ -8,7 +8,7 @@ echo.
 cd /d "%~dp0mobile"
 
 if not exist "node_modules\.install_success" (
-    echo Installing mobile dependencies (one-time setup)...
+    echo Installing mobile dependencies ^(one-time setup^)...
     call npm install
     if errorlevel 1 (
         echo ERROR: Mobile npm install failed.

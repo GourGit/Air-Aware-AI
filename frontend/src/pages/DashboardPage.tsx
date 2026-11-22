@@ -83,10 +83,26 @@ export default function DashboardPage() {
             <div className="lg:col-span-1 rounded-2xl border border-border dark:border-forest/40 bg-white dark:bg-charcoal p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-xs text-slate font-semibold mb-4">
-                  <span>LIVE CPCB STATION</span>
-                  <span className="inline-flex items-center gap-1 text-mint">
-                    <span className="w-2 h-2 rounded-full bg-mint animate-ping" />
-                    Live CAAQMS
+                  <span>
+                    {data.air_quality.status === 'live'
+                      ? 'LIVE CPCB STATION'
+                      : data.air_quality.status === 'sample'
+                      ? 'SAMPLE BASELINE STATION'
+                      : 'STATION DATA UNAVAILABLE'}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 ${
+                      data.air_quality.status === 'live' ? 'text-mint' : 'text-amber-500'
+                    }`}
+                  >
+                    {data.air_quality.status === 'live' && (
+                      <span className="w-2 h-2 rounded-full bg-mint animate-ping" />
+                    )}
+                    {data.air_quality.status === 'live'
+                      ? 'Live CAAQMS'
+                      : data.air_quality.status === 'sample'
+                      ? 'Sample Demonstration'
+                      : 'Unavailable'}
                   </span>
                 </div>
 

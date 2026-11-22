@@ -28,6 +28,9 @@ export default function ChatScreen() {
     const textToSend = overrideText || input;
     if (!textToSend.trim() || loading) return;
 
+    // Capture originating user ID when sending the message
+    const originatingUserId = user?.id || 'anonymous';
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -47,31 +50,58 @@ export default function ChatScreen() {
         message: textToSend,
         user_context: {
           city: 'Delhi',
-          user_id: user?.id || 'anonymous-user',
+          user_id: originatingUserId,
           user_email: user?.email,
         },
       });
 
+      // Verify account has not changed across request lifecycle before writing response
+      const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
+      if (currentActiveUserId !== originatingUserId) {
+        console.warn('Account session changed during pending chat request; discarding response.');
+        return;
+      }
+
+      // Extract response from top-level or enveloped backend payloads
+      let responseContent = 'Environmental guidance retrieved.';
+      if (res.data) {
+        if (typeof res.data.response === 'string') {
+          responseContent = res.data.response;
+        } else if (typeof res.data.message === 'string') {
+          responseContent = res.data.message;
+        } else if (res.data.data) {
+          if (typeof res.data.data.response === 'string') {
+            responseContent = res.data.data.response;
+          } else if (typeof res.data.data.message === 'string') {
+            responseContent = res.data.data.message;
+          }
+        }
+      }
+
       const assistantMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: res.data.response || res.data.message || 'Environmental guidance retrieved.',
+        content: responseContent,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        agent: res.data.agent_name || 'SynthesizerAgent',
+        agent: res.data.agent_name || res.data.data?.agent_name || 'SynthesizerAgent',
       };
       addMessage(assistantMsg);
     } catch (err) {
       console.warn('Chat assistant request failed:', err);
-      setLastFailedMessage(textToSend);
-      const errorMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content:
-          'Service is currently unavailable. Unable to reach live LangGraph agent backend. Please check connection and tap Retry below.',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        agent: 'SystemAlert',
-      };
-      addMessage(errorMsg);
+      // Only set error on current active user
+      const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
+      if (currentActiveUserId === originatingUserId) {
+        setLastFailedMessage(textToSend);
+        const errorMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content:
+            'Service is currently unavailable. Unable to reach live LangGraph agent backend. Please check connection and tap Retry below.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          agent: 'SystemAlert',
+        };
+        addMessage(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

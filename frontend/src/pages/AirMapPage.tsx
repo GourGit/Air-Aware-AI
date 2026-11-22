@@ -172,7 +172,7 @@ export default function AirMapPage() {
             {/* Bottom Overlay Notice */}
             <div className="z-10 m-4 bg-white/90 dark:bg-charcoal/90 backdrop-blur p-3 rounded-xl border border-border dark:border-forest/40 text-[11px] text-slate max-w-md pointer-events-auto">
               <strong className="text-charcoal dark:text-white">CPCB Data Notice: </strong>
-              Markers indicate verified Continuous Ambient Air Quality Monitoring Stations (CAAQMS).
+              Station markers display Continuous Ambient Air Quality Monitoring Stations (CAAQMS).
               {!isGoogleMapsActive && (
                 <span className="block mt-0.5 text-[10px] text-slate/80">
                   {mapError
@@ -199,9 +199,17 @@ export default function AirMapPage() {
                   </p>
                 </div>
 
+                {selectedStation.is_sample && (
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs">
+                    <strong>Sample Telemetry:</strong> Offline baseline profile for demonstration.
+                  </div>
+                )}
+
                 <div className="p-4 rounded-xl border border-border dark:border-forest/30 bg-muted/40 dark:bg-forest/10 flex items-center justify-between">
                   <div>
-                    <span className="text-xs text-slate font-medium">CPCB AQI Reading</span>
+                    <span className="text-xs text-slate font-medium">
+                      {selectedStation.is_sample ? 'CPCB AQI (Sample Profile)' : 'CPCB AQI Reading'}
+                    </span>
                     <div className="text-4xl font-extrabold font-display mt-0.5" style={{ color: selectedStation.color }}>
                       {selectedStation.aqi}
                     </div>
@@ -215,7 +223,7 @@ export default function AirMapPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <span className="text-xs font-bold uppercase text-slate">Live Pollutant Sensor Concentrations</span>
+                  <span className="text-xs font-bold uppercase text-slate">Pollutant Sensor Concentrations</span>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(selectedStation.pollutants).map(([pol, val]) => (
                       <div key={pol} className="p-2.5 rounded-lg border border-border/80 dark:border-forest/30 bg-white dark:bg-charcoal">
@@ -229,6 +237,9 @@ export default function AirMapPage() {
                 <div className="p-3 rounded-lg bg-mint/5 border border-mint/20 text-xs text-slate space-y-1">
                   <p><strong>Coordinates:</strong> {selectedStation.latitude}, {selectedStation.longitude}</p>
                   <p><strong>Source:</strong> {selectedStation.source}</p>
+                  {selectedStation.last_updated ? (
+                    <p><strong>Telemetry:</strong> {selectedStation.last_updated}</p>
+                  ) : null}
                 </div>
               </div>
             ) : (

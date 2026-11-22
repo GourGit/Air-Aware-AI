@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { AQIGauge } from '../components/AQIGauge';
 import { PollutantCard } from '../components/PollutantCard';
@@ -54,7 +55,7 @@ export default function DashboardScreen() {
           o3: { value: 38, unit: 'µg/m³', sub_index: 38 },
         },
         health_advisory: {
-          summary: 'Sample Demonstration: Thermal inversion conditions typically elevate particulate concentrations.',
+          summary: `Sample Demonstration: Typical particulate profile for ${city}.`,
           precautions: [
             'Reschedule outdoor cardio during morning peaks',
             'Wear N95/FFP2 respirator when commuting',
@@ -67,6 +68,15 @@ export default function DashboardScreen() {
       if (currentReqId === requestIdRef.current) {
         setLoading(false);
       }
+    }
+  };
+
+  const handleCityChange = (newCity: string) => {
+    if (newCity === city) {
+      fetchAQI(); // same-city refresh
+    } else {
+      setData(null); // Clear previous city's readings so they cannot be misattributed to new city
+      setCity(newCity);
     }
   };
 
@@ -85,7 +95,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* Notice Banner when viewing Offline Sample Data */}
-      {!isLive && (
+      {!isLive && data && (
         <View style={styles.sampleBanner}>
           <Text style={styles.sampleBannerText}>
             Notice: Offline Mode — Showing sample baseline data. Live CAAQMS connection is pending.
@@ -99,7 +109,7 @@ export default function DashboardScreen() {
           <TouchableOpacity
             key={c}
             style={[styles.cityTab, city === c && styles.cityTabActive]}
-            onPress={() => setCity(c)}
+            onPress={() => handleCityChange(c)}
           >
             <Text style={[styles.cityTabText, city === c && styles.cityTabTextActive]}>
               {c}
@@ -107,6 +117,14 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Loading state between city switches */}
+      {loading && !data && (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#25B89A" />
+          <Text style={styles.loadingText}>Fetching CAAQMS telemetry for {city}...</Text>
+        </View>
+      )}
 
       {data && (
         <>
@@ -134,7 +152,7 @@ export default function DashboardScreen() {
 
           {/* Pollutant Sensor Grid */}
           <Text style={styles.sectionTitle}>
-            {isLive ? 'Sensor Telemetry (CPCB CAAQMS)' : 'Sensor Telemetry (Sample Readings)'}
+            {isLive ? `Sensor Telemetry (${data.location.city} CAAQMS)` : `Sensor Telemetry (${data.location.city} Sample)`}
           </Text>
           <View style={styles.pollutantGrid}>
             {Object.entries(data.pollutants).map(([name, item]) => (
@@ -172,6 +190,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#71818A',
     fontWeight: '500',
+  },
+  loadingBox: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: '#71818A',
+    fontSize: 13,
+    fontWeight: '600',
   },
   sampleBanner: {
     backgroundColor: '#FEF3C7',

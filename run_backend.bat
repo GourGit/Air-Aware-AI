@@ -27,6 +27,18 @@ if not exist ".env" (
     copy .env.example .env >nul
 )
 
+REM Verify dependencies on startup
+python -c "import uvicorn, fastapi, pydantic, sqlalchemy, alembic" >nul 2>&1
+if errorlevel 1 (
+    echo Installing backend dependencies from requirements.txt (first-time launch)...
+    python -m pip install -r requirements.txt
+    if errorlevel 1 (
+        echo ERROR: Failed to install backend dependencies. Please check your internet connection or Python environment.
+        pause
+        exit /b 1
+    )
+)
+
 REM Apply database schema migrations if PostgreSQL is running
 echo Checking database schema migrations (Alembic)...
 python -m alembic upgrade head >nul 2>&1

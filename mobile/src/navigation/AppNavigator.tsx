@@ -62,6 +62,8 @@ export default function AppNavigator() {
           return (
             <TouchableOpacity
               key={tab.key}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
               style={[styles.tabButton, isActive && styles.tabButtonActive]}
               onPress={() => setActiveTab(tab.key)}
             >

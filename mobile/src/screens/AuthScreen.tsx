@@ -6,9 +6,9 @@ import { useMobileAuthStore } from '../store/authStore';
 export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
   const setAuth = useMobileAuthStore((state) => state.setAuth);
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('demo@airaware.ai');
-  const [password, setPassword] = useState('AirAwarePass123!');
-  const [name, setName] = useState('Aarav Sharma');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -28,15 +28,15 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
     try {
       const endpoint = isRegister ? '/auth/register' : '/auth/login';
       const payload = isRegister
-        ? { email, password, full_name: name }
-        : { email, password };
+        ? { email: email.trim(), password, full_name: name.trim() }
+        : { email: email.trim(), password };
 
       const res = await api.post(endpoint, payload);
-      const token = res.data.access_token || 'mobile-jwt-token';
-      const user = res.data.user || {
-        id: 'usr-mobile-1',
-        email,
-        name: isRegister ? name : email.split('@')[0],
+      const token = res.data.access_token || res.data.data?.access_token || 'authenticated-token';
+      const user = res.data.user || res.data.data?.user || {
+        id: 'usr-1',
+        email: email.trim(),
+        name: isRegister ? name.trim() : email.split('@')[0],
       };
 
       setAuth(user, token);
@@ -44,22 +44,33 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
         onLoginSuccess();
       }
     } catch (err: any) {
-      console.warn('Auth request failed, evaluating local verification error or offline capability:', err);
-      // If network failed or mock demo login
-      if (email === 'demo@airaware.ai' || email === 'aarav.sharma@example.com') {
-        const demoUser = {
-          id: 'usr-demo-123',
-          email,
-          name: name || 'Aarav Sharma',
-        };
-        setAuth(demoUser, 'demo-token');
-        if (onLoginSuccess) onLoginSuccess();
-        return;
+      console.warn('Auth request failed:', err);
+      let errorMsg = 'Authentication failed. Please verify credentials.';
+      if (err.response?.data) {
+        const d = err.response.data;
+        if (typeof d.detail === 'string') {
+          errorMsg = d.detail;
+        } else if (Array.isArray(d.detail)) {
+          errorMsg = d.detail.map((item: any) => item.msg || JSON.stringify(item)).join('; ');
+        } else if (typeof d.message === 'string') {
+          errorMsg = d.message;
+        }
       }
-      const msg = err.response?.data?.message || err.response?.data?.detail || 'Authentication failed. Please verify credentials.';
-      setError(msg);
+      setError(errorMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLaunchDemoMode = () => {
+    const demoUser = {
+      id: 'usr-demo-mode',
+      email: 'aarav.sharma@example.com',
+      name: 'Aarav Sharma',
+    };
+    setAuth(demoUser, 'demo-session-token');
+    if (onLoginSuccess) {
+      onLoginSuccess();
     }
   };
 
@@ -83,7 +94,12 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
         {isRegister && (
           <>
             <Text style={styles.label}>Full Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Your name" />
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Aarav Sharma"
+            />
           </>
         )}
 
@@ -114,12 +130,26 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.switchRow} onPress={() => { setIsRegister(!isRegister); setError(null); }}>
+        <TouchableOpacity
+          style={styles.switchRow}
+          onPress={() => {
+            setIsRegister(!isRegister);
+            setError(null);
+          }}
+        >
           <Text style={styles.switchText}>
-            {isRegister
-              ? 'Already registered? Sign In'
-              : 'New to AirAware? Create Account'}
+            {isRegister ? 'Already registered? Sign In' : 'New to AirAware? Create Account'}
           </Text>
+        </TouchableOpacity>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>DEMO EVALUATION</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity style={styles.demoBtn} onPress={handleLaunchDemoMode}>
+          <Text style={styles.demoBtnText}>Launch Offline Demonstration Mode</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -217,5 +247,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#25B89A',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+    gap: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#DCE6E2',
+  },
+  dividerText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#71818A',
+  },
+  demoBtn: {
+    borderWidth: 1,
+    borderColor: '#25B89A',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  demoBtnText: {
+    color: '#25B89A',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

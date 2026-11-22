@@ -1,7 +1,9 @@
 """Air quality endpoints: current AQI, stations, and multi-day forecast."""
 from __future__ import annotations
 
+import json
 from fastapi import APIRouter, Query
+from app.api.dependencies import _redis_pool
 from app.services.station_service import get_all_stations, get_current_air_quality
 from app.services.forecast_service import get_air_forecast
 
@@ -14,8 +16,25 @@ async def get_current_air(
     lng: float | None = Query(None, description="Longitude"),
     city: str | None = Query(None, description="Target city name"),
 ):
-    """Retrieve verified CPCB air quality and all active pollutant concentrations."""
+    """Retrieve verified CPCB air quality and all active pollutant concentrations (database-independent, cached in Redis when available)."""
+    cache_key = f"air:current:{city or 'default'}:{lat}:{lng}"
+    if _redis_pool is not None:
+        try:
+            cached = await _redis_pool.get(cache_key)
+            if cached:
+                cached_data = json.loads(cached) if isinstance(cached, str) else json.loads(cached.decode("utf-8"))
+                return {"success": True, "data": cached_data, "source": "redis_cache"}
+        except Exception:
+            pass
+
     data = get_current_air_quality(latitude=lat, longitude=lng, city=city)
+
+    if _redis_pool is not None:
+        try:
+            await _redis_pool.set(cache_key, json.dumps(data), ex=60)
+        except Exception:
+            pass
+
     return {"success": True, "data": data}
 
 
