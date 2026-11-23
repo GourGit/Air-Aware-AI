@@ -1,0 +1,17 @@
+# Root dockerignore
+node_modules
+venv
+.venv
+dist
+build
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.vscode
+.idea
+*.log
+coverage
+.pytest_cache
+__pycache__

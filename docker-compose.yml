@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # PostgreSQL 18 Database
   postgres:
@@ -13,12 +11,13 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U airaware -d airaware_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   # Redis Cache
   redis:
@@ -31,47 +30,72 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
+      interval: 5s
+      timeout: 3s
       retries: 5
 
-  # FastAPI Backend
+  # Database Migration Runner (executes once before backend starts)
+  migration:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: airaware-migration
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://airaware:airaware_dev_password@postgres:5432/airaware_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m alembic upgrade head
+
+  # FastAPI Shared Backend
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: airaware-backend
     restart: unless-stopped
-    env_file:
-      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://airaware:airaware_dev_password@postgres:5432/airaware_db
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+      CORS_ORIGINS: http://localhost,http://localhost:80,http://localhost:3000,http://localhost:5173,http://127.0.0.1,http://127.0.0.1:80,http://127.0.0.1:3000,http://127.0.0.1:5173
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-  # React Frontend (dev mode)
+  # Product A: React Frontend (Nginx Production Reverse Proxy)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api/v1
     container_name: airaware-frontend
     restart: unless-stopped
-    env_file:
-      - ./frontend/.env
     ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "80:80"
+      - "3000:80"
     depends_on:
       - backend
-    command: npm run dev -- --host 0.0.0.0
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   postgres_data:

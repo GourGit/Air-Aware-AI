@@ -447,7 +447,7 @@ export const airQualityService = {
     return FALLBACK_STATIONS;
   },
 
-  getForecast: async (lat?: number, lng?: number, days: number = 3) => {
+  getForecast: async (lat?: number, lng?: number, days = 3) => {
     try {
       const res = await api.get('/air/forecast', { params: { lat, lng, days } });
       return res.data.data;

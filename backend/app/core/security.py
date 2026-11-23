@@ -8,12 +8,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-try:
-    from jose import JWTError, jwt
-except ImportError:
-    import jwt
-    class JWTError(Exception):
-        pass
+from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,23 +20,17 @@ _bearer_scheme = HTTPBearer(auto_error=True)
 _bearer_scheme_optional = HTTPBearer(auto_error=False)
 
 # ── Password hashing ─────────────────────────────────────────
-try:
-    from passlib.context import CryptContext
-    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from passlib.context import CryptContext
 
-    def hash_password(raw: str) -> str:
-        return pwd_context.hash(raw)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    def verify_password(raw: str, hashed: str) -> bool:
-        return pwd_context.verify(raw, hashed)
-except ImportError:
-    import hashlib
 
-    def hash_password(raw: str) -> str:
-        return hashlib.sha256(raw.encode()).hexdigest()
+def hash_password(raw: str) -> str:
+    return pwd_context.hash(raw)
 
-    def verify_password(raw: str, hashed: str) -> bool:
-        return hashlib.sha256(raw.encode()).hexdigest() == hashed
+
+def verify_password(raw: str, hashed: str) -> bool:
+    return pwd_context.verify(raw, hashed)
 
 
 # ── JWT helpers ───────────────────────────────────────────────

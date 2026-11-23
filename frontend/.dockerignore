@@ -1,0 +1,30 @@
+# Node dependencies and build outputs
+node_modules
+dist
+build
+.vite
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Version control
+.git
+.gitignore
+
+# IDE and OS files
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs and test outputs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+coverage
+*.tsbuildinfo

@@ -3,70 +3,133 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.dependencies import DBSession, CurrentUser, OptionalUser
+from app.models.community import CommunityReport
+from app.repositories import CommunityRepository
 from app.schemas.community import CommunityReportCreate, ReportModerationRequest
 
 router = APIRouter(prefix="/community", tags=["Community Reports"])
 
-# In-memory store for demonstration / development resilience
-_COMMUNITY_REPORTS = [
-    {
-        "id": "rep-001",
-        "category": "waste_burning",
-        "description": "Open plastic and leaf burning in vacant plot near Anand Vihar bus terminus. Thick black smoke spreading across residential colony.",
-        "latitude": 28.6520,
-        "longitude": 77.3160,
-        "approx_location_name": "Anand Vihar Sector 4",
-        "image_url": None,
-        "status": "approved",
-        "observed_at": "2026-11-22T04:15:00Z",
-        "created_at": "2026-11-22T04:20:00Z",
-    },
-    {
-        "id": "rep-002",
-        "category": "construction_dust",
-        "description": "Uncovered sand and demolition debris on main road without water sprinkling or green netting.",
-        "latitude": 22.5820,
-        "longitude": 88.4350,
-        "approx_location_name": "Salt Lake Sector V Ring Road",
-        "image_url": None,
-        "status": "approved",
-        "observed_at": "2026-11-22T03:30:00Z",
-        "created_at": "2026-11-22T03:35:00Z",
-    },
-]
-
 
 @router.get("/reports")
-async def list_community_reports():
+async def list_community_reports(
+    db: DBSession,
+    limit: int = 50,
+    offset: int = 0,
+):
     """List approved community pollution reports with location coordinates."""
-    return {"success": True, "data": _COMMUNITY_REPORTS, "count": len(_COMMUNITY_REPORTS)}
+    repo = CommunityRepository(db)
+    reports = await repo.get_approved_reports(limit=limit, offset=offset)
+
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": str(r.id),
+                "category": r.report_type,
+                "description": r.description,
+                "latitude": r.latitude,
+                "longitude": r.longitude,
+                "approx_location_name": r.address,
+                "image_url": (r.image_urls or {}).get("url") if r.image_urls else None,
+                "status": r.status,
+                "observed_at": r.reported_at.isoformat(),
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in reports
+        ],
+        "count": len(reports),
+    }
 
 
 @router.post("/reports")
-async def create_community_report(req: CommunityReportCreate):
+async def create_community_report(
+    req: CommunityReportCreate,
+    user: OptionalUser,
+    db: DBSession,
+):
     """Submit a citizen pollution observation report."""
-    report = {
-        "id": f"rep-{uuid.uuid4().hex[:6]}",
-        "category": req.category,
-        "description": req.description,
-        "latitude": round(req.latitude, 4),  # Geoprivacy rounding
-        "longitude": round(req.longitude, 4),
-        "approx_location_name": req.approx_location_name,
-        "image_url": req.image_url,
-        "status": "approved",  # auto-approve for dev testing
-        "observed_at": req.observed_at.isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+    if user is None:
+        # Allow anonymous reports for development, but require auth in production
+        from app.config import get_settings
+        settings = get_settings()
+        if settings.is_production:
+            from fastapi import HTTPException, status
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to submit reports",
+            )
+        # Use a placeholder user ID for anonymous reports in development
+        user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    else:
+        user_id = user.id
+
+    report = CommunityReport(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        report_type=req.category,
+        title=req.description[:100] if req.description else "Community Report",
+        description=req.description,
+        latitude=round(req.latitude, 4),
+        longitude=round(req.longitude, 4),
+        address=req.approx_location_name,
+        severity=1,
+        status="pending",
+        upvotes=0,
+        image_urls={"url": req.image_url} if req.image_url else None,
+        reported_at=req.observed_at,
+    )
+    repo = CommunityRepository(db)
+    saved = await repo.create_report(report)
+
+    return {
+        "success": True,
+        "data": {
+            "id": str(saved.id),
+            "category": saved.report_type,
+            "description": saved.description,
+            "latitude": saved.latitude,
+            "longitude": saved.longitude,
+            "approx_location_name": saved.address,
+            "image_url": (saved.image_urls or {}).get("url") if saved.image_urls else None,
+            "status": saved.status,
+            "observed_at": saved.reported_at.isoformat(),
+            "created_at": saved.created_at.isoformat(),
+        },
     }
-    _COMMUNITY_REPORTS.insert(0, report)
-    return {"success": True, "data": report}
 
 
 @router.post("/reports/{report_id}/moderate")
-async def moderate_report(report_id: str, req: ReportModerationRequest):
+async def moderate_report(
+    report_id: uuid.UUID,
+    req: ReportModerationRequest,
+    db: DBSession,
+):
     """Moderate report status (Admin / Moderator)."""
-    for r in _COMMUNITY_REPORTS:
-        if r["id"] == report_id:
-            r["status"] = req.decision
-            return {"success": True, "data": r}
-    return {"success": False, "message": "Report not found"}
+    repo = CommunityRepository(db)
+    updated = await repo.update_report_status(
+        report_id=report_id,
+        status=req.decision,
+        reason=req.reason,
+    )
+    if not updated:
+        return {"success": False, "message": "Report not found"}
+
+    return {
+        "success": True,
+        "data": {
+            "id": str(updated.id),
+            "category": updated.report_type,
+            "description": updated.description,
+            "latitude": updated.latitude,
+            "longitude": updated.longitude,
+            "approx_location_name": updated.address,
+            "image_url": (updated.image_urls or {}).get("url") if updated.image_urls else None,
+            "status": updated.status,
+            "observed_at": updated.reported_at.isoformat(),
+            "created_at": updated.created_at.isoformat(),
+        },
+    }

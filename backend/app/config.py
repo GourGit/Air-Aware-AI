@@ -8,7 +8,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List
 
-from pydantic import field_validator, computed_field
+from pydantic import field_validator, model_validator, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     GOOGLE_MAPS_API_KEY: str = ""
 
     # ── URLs ──────────────────────────────────────────────────
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "http://localhost:5173"
     BACKEND_URL: str = "http://localhost:8000"
 
     # ── Runtime ───────────────────────────────────────────────
@@ -71,6 +71,30 @@ class Settings(BaseSettings):
         if lower not in allowed:
             raise ValueError(f"ENVIRONMENT must be one of {allowed}")
         return lower
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> Settings:
+        """Enforce strict secret and database requirements in production."""
+        if self.ENVIRONMENT == "production":
+            insecure_defaults = {
+                "change-me-in-production",
+                "dev-airaware-secret-key-32-characters-long",
+                "dev-airaware-jwt-secret-key-32-chars",
+                "",
+            }
+            if self.SECRET_KEY in insecure_defaults or len(self.SECRET_KEY) < 32:
+                raise ValueError(
+                    "SECRET_KEY must be a secure, random string with at least 32 characters in production."
+                )
+            if self.JWT_SECRET_KEY in insecure_defaults or len(self.JWT_SECRET_KEY) < 32:
+                raise ValueError(
+                    "JWT_SECRET_KEY must be a secure, random string with at least 32 characters in production."
+                )
+            if "changeme" in self.DATABASE_URL:
+                raise ValueError(
+                    "DATABASE_URL contains default unconfigured password in production."
+                )
+        return self
 
     # ── Computed properties ───────────────────────────────────
     @computed_field  # type: ignore[misc]

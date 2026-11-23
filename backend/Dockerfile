@@ -20,7 +20,7 @@ FROM python:3.11-slim AS runtime
 LABEL maintainer="AirAware AI Team"
 
 # Non-root user for security
-RUN groupadd -r airaware && useradd -r -g airaware airaware
+RUN groupadd -r airaware && useradd -r -g airaware -d /app airaware
 
 WORKDIR /app
 
@@ -35,8 +35,8 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY . .
 
-# Own the working directory
-RUN chown -R airaware:airaware /app
+# Ensure entrypoint is executable and owned by airaware
+RUN chmod +x /app/entrypoint.sh && chown -R airaware:airaware /app
 
 USER airaware
 
@@ -44,5 +44,7 @@ EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

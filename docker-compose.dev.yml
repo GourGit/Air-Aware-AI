@@ -1,0 +1,22 @@
+# =================================================================
+# Docker Compose Development Override
+# Use alongside docker-compose.yml:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# =================================================================
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev -- --host 0.0.0.0 --port 5173
