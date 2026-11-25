@@ -1,23 +1,21 @@
 import { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 import { Spinner } from '@/components/ui/spinner';
 
-// Lazy-loaded pages
+// Lazy-loaded PUBLIC pages (no registration required)
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
-const LoginPage = lazy(() => import('@/pages/LoginPage'));
-const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
-const OnboardingPage = lazy(() => import('@/pages/OnboardingPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const AirQualityPage = lazy(() => import('@/pages/AirQualityPage'));
 const AirMapPage = lazy(() => import('@/pages/AirMapPage'));
-const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
-const RoutinePage = lazy(() => import('@/pages/RoutinePage'));
-const IndoorAirPage = lazy(() => import('@/pages/IndoorAirPage'));
-const MobilityPage = lazy(() => import('@/pages/MobilityPage'));
-const ImpactPage = lazy(() => import('@/pages/ImpactPage'));
-const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+
+// Auth pages
+const LoginPage = lazy(() => import('@/pages/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/RegisterPage'));
+
+// Mobile App Promotion page for protected routes
+const MobileAppPage = lazy(() => import('@/pages/MobileAppPage'));
+
+// 404
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'));
 
 function PageLoader() {
@@ -40,17 +38,15 @@ export function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
-        {/* Personalized & Advanced Capabilities (Protected or Onboarding) */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/onboarding" element={<OnboardingPage />} />
-          <Route path="/assistant" element={<AssistantPage />} />
-          <Route path="/routine" element={<RoutinePage />} />
-          <Route path="/indoor" element={<IndoorAirPage />} />
-          <Route path="/mobility" element={<MobilityPage />} />
-          <Route path="/impact" element={<ImpactPage />} />
-          <Route path="/community" element={<CommunityPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
+        {/* Protected personalized features → Mobile App Promotion */}
+        <Route path="/assistant" element={<MobileAppPage />} />
+        <Route path="/routine" element={<MobileAppPage />} />
+        <Route path="/indoor" element={<MobileAppPage />} />
+        <Route path="/mobility" element={<MobileAppPage />} />
+        <Route path="/impact" element={<MobileAppPage />} />
+        <Route path="/community" element={<MobileAppPage />} />
+        <Route path="/settings" element={<MobileAppPage />} />
+        <Route path="/onboarding" element={<MobileAppPage />} />
 
         {/* 404 Not Found */}
         <Route path="*" element={<NotFoundPage />} />

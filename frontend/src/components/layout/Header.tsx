@@ -2,13 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   Menu,
   Search,
-  Bell,
-  Sun,
-  Moon,
   MapPin,
-  User,
   Smartphone,
   LogIn,
+  Download,
 } from 'lucide-react';
 import { useThemeStore } from '@/store/theme-store';
 import { useAuthStore } from '@/store/auth-store';
@@ -21,7 +18,6 @@ interface HeaderProps {
 export function Header({ onMenuToggle }: HeaderProps) {
   const location = useLocation();
   const { theme, toggleTheme } = useThemeStore();
-  const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
@@ -41,22 +37,24 @@ export function Header({ onMenuToggle }: HeaderProps) {
         <div className="flex items-center gap-2 text-sm text-slate">
           <MapPin className="w-4 h-4 text-mint shrink-0" />
           <span className="hidden sm:inline font-medium text-charcoal dark:text-mist">
-            {user?.location?.city ?? 'India (CAAQMS Network)'}
+            India (CAAQMS Network)
           </span>
         </div>
       </div>
 
-      {/* Center: Search (desktop) */}
-      <div className="hidden lg:flex items-center max-w-md w-full mx-8">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate" />
-          <input
-            type="search"
-            placeholder="Search city, station, or pollutant (e.g. Delhi, PM2.5)..."
-            className="w-full h-9 pl-9 pr-4 rounded-lg border border-border bg-muted text-sm text-charcoal placeholder:text-slate/60 focus:outline-none focus:ring-2 focus:ring-mint focus:ring-offset-1 dark:bg-forest/10 dark:border-forest/30 dark:text-mist"
-          />
+      {/* Center: Search (desktop) - only on public pages */}
+      {location.pathname !== '/login' && location.pathname !== '/register' && (
+        <div className="hidden lg:flex items-center max-w-md w-full mx-8">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate" />
+            <input
+              type="search"
+              placeholder="Search city, station, or pollutant (e.g. Delhi, PM2.5)..."
+              className="w-full h-9 pl-9 pr-4 rounded-lg border border-border bg-muted text-sm text-charcoal placeholder:text-slate/60 focus:outline-none focus:ring-2 focus:ring-mint focus:ring-offset-1 dark:bg-forest/10 dark:border-forest/30 dark:text-mist"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
@@ -67,41 +65,20 @@ export function Header({ onMenuToggle }: HeaderProps) {
           aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
         >
           {theme === 'light' ? (
-            <Moon className="w-5 h-5" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
           ) : (
-            <Sun className="w-5 h-5" />
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
           )}
         </Button>
 
+        {/* Mobile App CTA for authenticated users on web */}
         {isAuthenticated ? (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Notifications"
-              className="relative"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-mint rounded-full" />
-            </Button>
-
-            <div className="ml-2 flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-mint/10 text-mint">
-                {user?.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.name}
-                    className="w-8 h-8 rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="w-4 h-4" />
-                )}
-              </div>
-              <span className="hidden md:inline text-sm font-medium text-charcoal dark:text-mist">
-                {user?.name ?? 'User'}
-              </span>
-            </div>
-          </>
+          <div className="flex items-center gap-2">
+            <Link to="/assistant" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-mint/10 border border-mint/20 text-mint hover:bg-mint/20 text-xs font-semibold transition-colors">
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Mobile App</span>
+            </Link>
+          </div>
         ) : (
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-muted dark:bg-forest/20 text-slate">
@@ -109,7 +86,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
             </span>
             <Link to="/login" state={{ from: location }}>
               <Button size="sm" variant="outline" className="text-xs h-8 gap-1.5">
-                <LogIn className="w-3.5 h-3.5" />
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
                 <span>Sign In</span>
               </Button>
             </Link>

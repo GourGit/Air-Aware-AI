@@ -1,62 +1,92 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import api from '../config/api';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { authApi, handleApiError } from '../services/api';
 import { useMobileAuthStore } from '../store/authStore';
 
-export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => void }) {
+export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess?: () => void }) {
   const setAuth = useMobileAuthStore((state) => state.setAuth);
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const restore = async () => {
+      await useMobileAuthStore.getState().restoreSession();
+      if (useMobileAuthStore.getState().isAuthenticated && onAuthSuccess) {
+        onAuthSuccess();
+      }
+    };
+    restore();
+  }, [onAuthSuccess]);
+
+  const validateEmail = (email: string): boolean => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
       setError('Please provide both email and password.');
       return;
     }
-    if (isRegister && !name.trim()) {
-      setError('Please provide your full name.');
+    if (!validateEmail(email.trim())) {
+      setError('Please enter a valid email address.');
       return;
+    }
+    if (isRegister) {
+      if (!displayName.trim()) {
+        setError('Please provide your full name.');
+        return;
+      }
+      if (displayName.trim().length > 100) {
+        setError('Name must be 100 characters or less.');
+        return;
+      }
+      if (password.length < 8) {
+        setError('Password must be at least 8 characters.');
+        return;
+      }
+      if (password.length > 128) {
+        setError('Password must be 128 characters or less.');
+        return;
+      }
     }
 
     setError(null);
     setLoading(true);
 
     try {
-      const endpoint = isRegister ? '/auth/register' : '/auth/login';
-      const payload = isRegister
-        ? { email: email.trim(), password, full_name: name.trim() }
-        : { email: email.trim(), password };
-
-      const res = await api.post(endpoint, payload);
-      const token = res.data.access_token || res.data.data?.access_token || 'authenticated-token';
-      const user = res.data.user || res.data.data?.user || {
-        id: 'usr-1',
-        email: email.trim(),
-        name: isRegister ? name.trim() : email.split('@')[0],
-      };
-
-      setAuth(user, token);
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      }
-    } catch (err: any) {
-      console.warn('Auth request failed:', err);
-      let errorMsg = 'Authentication failed. Please verify credentials.';
-      if (err.response?.data) {
-        const d = err.response.data;
-        if (typeof d.detail === 'string') {
-          errorMsg = d.detail;
-        } else if (Array.isArray(d.detail)) {
-          errorMsg = d.detail.map((item: any) => item.msg || JSON.stringify(item)).join('; ');
-        } else if (typeof d.message === 'string') {
-          errorMsg = d.message;
+      if (isRegister) {
+        const user = await authApi.register({
+          email: email.trim(),
+          password,
+          display_name: displayName.trim(),
+        });
+        Alert.alert(
+          'Account Created',
+          'Your account has been created successfully. Please sign in to continue.',
+          [{ text: 'OK', onPress: () => setIsRegister(false) }]
+        );
+      } else {
+        const { accessToken, refreshToken } = await authApi.login({
+          email: email.trim(),
+          password,
+        });
+        const user = await authApi.me();
+        await setAuth(
+          { id: user.id, email: user.email, name: user.display_name || user.email.split('@')[0] },
+          accessToken,
+          refreshToken
+        );
+        if (onAuthSuccess) {
+          onAuthSuccess();
         }
       }
-      setError(errorMsg);
+    } catch (err) {
+      const apiError = handleApiError(err);
+      setError(apiError.message);
     } finally {
       setLoading(false);
     }
@@ -65,12 +95,12 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
   const handleLaunchDemoMode = () => {
     const demoUser = {
       id: 'usr-demo-mode',
-      email: 'aarav.sharma@example.com',
-      name: 'Aarav Sharma',
+      email: 'demo@airaware.ai',
+      name: 'Demo User',
     };
-    setAuth(demoUser, 'demo-session-token');
-    if (onLoginSuccess) {
-      onLoginSuccess();
+    setAuth(demoUser, 'demo-access-token', 'demo-refresh-token');
+    if (onAuthSuccess) {
+      onAuthSuccess();
     }
   };
 
@@ -81,7 +111,7 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
       </View>
       <Text style={styles.title}>AirAware AI Mobile</Text>
       <Text style={styles.subtitle}>
-        {isRegister ? 'Personalized Lifestyle Air Intelligence' : 'Sign in to access your AI companion'}
+        {isRegister ? 'Create your personalized air intelligence account' : 'Sign in to access your AI companion'}
       </Text>
 
       <View style={styles.card}>
@@ -96,9 +126,10 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
             <Text style={styles.label}>Full Name</Text>
             <TextInput
               style={styles.input}
-              value={name}
-              onChangeText={setName}
+              value={displayName}
+              onChangeText={setDisplayName}
               placeholder="e.g. Aarav Sharma"
+              autoCapitalize="words"
             />
           </>
         )}
@@ -119,14 +150,14 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess?: () => 
           secureTextEntry
           value={password}
           onChangeText={setPassword}
-          placeholder="••••••••"
+          placeholder={isRegister ? 'Min. 8 characters' : '••••••••'}
         />
 
         <TouchableOpacity style={styles.btn} onPress={handleSubmit} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
           ) : (
-            <Text style={styles.btnText}>{isRegister ? 'Complete Onboarding' : 'Sign In'}</Text>
+            <Text style={styles.btnText}>{isRegister ? 'Create Account' : 'Sign In'}</Text>
           )}
         </TouchableOpacity>
 

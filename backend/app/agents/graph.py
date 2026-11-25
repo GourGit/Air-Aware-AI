@@ -4,14 +4,14 @@ from __future__ import annotations
 import uuid
 from typing import Any
 from app.agents.state import AgentState
-from app.agents.orchestrator import orchestrator_node
-from app.agents.aqi_agent import aqi_agent_node
-from app.agents.routine_agent import routine_agent_node
-from app.agents.indoor_agent import indoor_agent_node
-from app.agents.mobility_agent import mobility_agent_node
-from app.agents.impact_agent import impact_agent_node
-from app.agents.safety_agent import safety_agent_node
-from app.agents.synthesizer import synthesizer_node
+from app.agents.orchestrator import orchestrator_node, orchestrator_node_sync
+from app.agents.aqi_agent import aqi_agent_node, aqi_agent_node_sync
+from app.agents.routine_agent import routine_agent_node, routine_agent_node_sync
+from app.agents.indoor_agent import indoor_agent_node, indoor_agent_node_sync
+from app.agents.mobility_agent import mobility_agent_node, mobility_agent_node_sync
+from app.agents.impact_agent import impact_agent_node, impact_agent_node_sync
+from app.agents.safety_agent import safety_agent_node, safety_agent_node_sync
+from app.agents.synthesizer import synthesizer_node, synthesizer_node_sync
 
 # Try importing LangGraph if installed in environment
 try:
@@ -83,39 +83,39 @@ agent_graph = build_agent_graph()
 
 
 async def _run_sequential_flow(state: AgentState) -> dict:
-    """Direct execution following the exact LangGraph conditional DAG edges."""
+    """Direct execution following the exact LangGraph conditional DAG edges using sync fallbacks."""
     # 1. Orchestrator
-    o_update = orchestrator_node(state)
+    o_update = orchestrator_node_sync(state)
     for k, v in o_update.items():
         setattr(state, k, v)
 
     # 2. AQI Agent (Baseline)
-    a_update = aqi_agent_node(state)
+    a_update = aqi_agent_node_sync(state)
     for k, v in a_update.items():
         setattr(state, k, v)
 
     # 3. Conditional Specialist Branch
     branch = route_to_specialists(state)
     if branch == "routine_agent":
-        s_update = routine_agent_node(state)
+        s_update = routine_agent_node_sync(state)
     elif branch == "indoor_agent":
-        s_update = indoor_agent_node(state)
+        s_update = indoor_agent_node_sync(state)
     elif branch == "mobility_agent":
-        s_update = mobility_agent_node(state)
+        s_update = mobility_agent_node_sync(state)
     elif branch == "impact_agent":
-        s_update = impact_agent_node(state)
+        s_update = impact_agent_node_sync(state)
     else:
         s_update = {}
     for k, v in s_update.items():
         setattr(state, k, v)
 
     # 4. Safety Agent
-    sf_update = safety_agent_node(state)
+    sf_update = safety_agent_node_sync(state)
     for k, v in sf_update.items():
         setattr(state, k, v)
 
     # 5. Synthesizer
-    syn_update = synthesizer_node(state)
+    syn_update = synthesizer_node_sync(state)
     return syn_update["final_response"]
 
 

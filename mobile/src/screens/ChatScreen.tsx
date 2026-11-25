@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import api from '../config/api';
+import { chatApi, handleApiError } from '../services/api';
 import { useChatStore } from '../store/chatStore';
 import { useMobileAuthStore } from '../store/authStore';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, ChatMessageMetadata } from '../types';
 
 export default function ChatScreen() {
   const messages = useChatStore((state) => state.messages);
@@ -23,88 +24,105 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
-  const sendMessage = async (overrideText?: string) => {
-    const textToSend = overrideText || input;
-    if (!textToSend.trim() || loading) return;
-
-    // Capture originating user ID when sending the message
-    const originatingUserId = user?.id || 'anonymous';
-
-    const userMsg: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    if (!overrideText) {
-      addMessage(userMsg);
-      setInput('');
-    }
-    setLoading(true);
-    setLastFailedMessage(null);
-
-    try {
-      const res = await api.post('/chat/message', {
-        message: textToSend,
-        user_context: {
-          city: 'Delhi',
-          user_id: originatingUserId,
-          user_email: user?.email,
-        },
-      });
-
-      // Verify account has not changed across request lifecycle before writing response
-      const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
-      if (currentActiveUserId !== originatingUserId) {
-        console.warn('Account session changed during pending chat request; discarding response.');
-        return;
-      }
-
-      // Extract response from top-level or enveloped backend payloads
-      let responseContent = 'Environmental guidance retrieved.';
-      if (res.data) {
-        if (typeof res.data.response === 'string') {
-          responseContent = res.data.response;
-        } else if (typeof res.data.message === 'string') {
-          responseContent = res.data.message;
-        } else if (res.data.data) {
-          if (typeof res.data.data.response === 'string') {
-            responseContent = res.data.data.response;
-          } else if (typeof res.data.data.message === 'string') {
-            responseContent = res.data.data.message;
-          }
-        }
-      }
-
-      const assistantMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+  useEffect(() => {
+    const hasWelcome = messages.some((m) => m.role === 'assistant' && m.agent === 'CoordinatorAgent');
+    if (!hasWelcome) {
+      addMessage({
+        id: '1',
         role: 'assistant',
-        content: responseContent,
+        content:
+          'Hello! I am your AirAware AI assistant powered by LangGraph multi-agent intelligence. How can I help with your routine, transit, or air quality questions today?',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        agent: res.data.agent_name || res.data.data?.agent_name || 'SynthesizerAgent',
+        agent: 'CoordinatorAgent',
+      });
+    }
+  }, [messages, addMessage]);
+
+  const sendMessage = useCallback(
+    async (overrideText?: string) => {
+      const textToSend = overrideText || input;
+      if (!textToSend.trim() || loading) return;
+
+      const originatingUserId = user?.id || 'anonymous';
+
+      const userMsg: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: textToSend,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      addMessage(assistantMsg);
-    } catch (err) {
-      console.warn('Chat assistant request failed:', err);
-      // Only set error on current active user
-      const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
-      if (currentActiveUserId === originatingUserId) {
-        setLastFailedMessage(textToSend);
-        const errorMsg: ChatMessage = {
+
+      if (!overrideText) {
+        addMessage(userMsg);
+        setInput('');
+      }
+      setLoading(true);
+      setLastFailedMessage(null);
+
+      try {
+        const location = { city: 'Delhi', latitude: 28.6139, longitude: 77.209 };
+
+        const res = await chatApi.sendMessage({
+          conversation_id: conversationId || undefined,
+          message: textToSend,
+          latitude: location.latitude,
+          longitude: location.longitude,
+          city: location.city,
+        });
+
+        const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
+        if (currentActiveUserId !== originatingUserId) {
+          console.warn('Account session changed during pending chat request; discarding response.');
+          return;
+        }
+
+        setConversationId(res.conversation_id);
+
+        const metadata: ChatMessageMetadata = {
+          intent: res.intent,
+          recommendations: res.recommendations,
+          sources: res.sources,
+          limitations: res.limitations,
+          observed_at: res.observed_at,
+          agents_used: res.agents_used,
+        };
+
+        const assistantMsg: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content:
-            'Service is currently unavailable. Unable to reach live LangGraph agent backend. Please check connection and tap Retry below.',
+          content: res.answer,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          agent: 'SystemAlert',
+          agent: res.agents_used?.[res.agents_used.length - 1] || 'SynthesizerAgent',
+          metadata,
         };
-        addMessage(errorMsg);
+        addMessage(assistantMsg);
+      } catch (err) {
+        console.warn('Chat assistant request failed:', err);
+        const currentActiveUserId = useMobileAuthStore.getState().user?.id || 'anonymous';
+        if (currentActiveUserId === originatingUserId) {
+          setLastFailedMessage(textToSend);
+          const errorMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content:
+              'Service is currently unavailable. Unable to reach live LangGraph agent backend. Please check connection and tap Retry below.',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            agent: 'SystemAlert',
+          };
+          addMessage(errorMsg);
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
+    },
+    [input, loading, user, conversationId, addMessage]
+  );
+
+  const handleNewConversation = () => {
+    setConversationId(null);
+    useChatStore.getState().clearMessages();
   };
 
   return (
@@ -116,6 +134,9 @@ export default function ChatScreen() {
       <View style={styles.topHeader}>
         <Text style={styles.headerTitle}>LangGraph AI Assistant</Text>
         <Text style={styles.headerSubtitle}>Multi-Agent Urban Environmental Advisory</Text>
+        <TouchableOpacity style={styles.newChatBtn} onPress={handleNewConversation} disabled={loading}>
+          <Text style={styles.newChatBtnText}>New Chat</Text>
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -148,6 +169,16 @@ export default function ChatScreen() {
             >
               {item.content}
             </Text>
+            {item.metadata && (
+              <View style={styles.metadata}>
+                {item.metadata.sources && item.metadata.sources.length > 0 && (
+                  <Text style={styles.metaText}>Source: {item.metadata.sources[0]}</Text>
+                )}
+                {item.metadata.observed_at && (
+                  <Text style={styles.metaText}>Observed: {new Date(item.metadata.observed_at).toLocaleString()}</Text>
+                )}
+              </View>
+            )}
             <Text style={styles.timestamp}>{item.timestamp}</Text>
           </View>
         )}
@@ -169,7 +200,7 @@ export default function ChatScreen() {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Ask about air quality, running safely..."
+          placeholder="Ask about air quality, running safety, indoor purifiers, transit..."
           placeholderTextColor="#71818A"
           value={input}
           onChangeText={setInput}
@@ -186,6 +217,10 @@ export default function ChatScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.disclaimer}>
+        AirAware AI provides general environmental advice based on ambient monitoring stations. Not a substitute for clinical medical advice.
+      </Text>
     </KeyboardAvoidingView>
   );
 }
@@ -200,6 +235,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderColor: '#DCE6E2',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
@@ -209,6 +247,19 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     color: '#71818A',
+  },
+  newChatBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F5F8F7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#DCE6E2',
+  },
+  newChatBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#25B89A',
   },
   messageList: {
     padding: 16,
@@ -258,6 +309,17 @@ const styles = StyleSheet.create({
     color: '#71818A',
     alignSelf: 'flex-end',
     marginTop: 4,
+  },
+  metadata: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  metaText: {
+    fontSize: 10,
+    color: '#71818A',
+    marginBottom: 2,
   },
   retryBar: {
     backgroundColor: '#FEE2E2',
@@ -316,5 +378,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
+  },
+  disclaimer: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#71818A',
+    padding: 12,
   },
 });

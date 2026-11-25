@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.database.session import get_db
+from app.services.token_blacklist import is_token_blacklisted
 
 _settings = get_settings()
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -93,6 +94,11 @@ def verify_token(token: str, expected_type: str = "access") -> dict[str, Any]:
         raise credentials_exception from exc
 
 
+async def check_token_revoked(token: str) -> bool:
+    """Check if token has been revoked."""
+    return await is_token_blacklisted(token)
+
+
 # ── FastAPI dependencies ──────────────────────────────────────
 
 async def get_current_user(
@@ -103,6 +109,15 @@ async def get_current_user(
     from app.models.user import User  # local import to avoid circular deps
 
     payload = verify_token(credentials.credentials, expected_type="access")
+    
+    # Check if token is revoked
+    if await check_token_revoked(credentials.credentials):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
     user_id = payload["sub"]
 
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))

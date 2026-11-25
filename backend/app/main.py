@@ -3,6 +3,8 @@
 Provides:
 - Lifespan handler (database + Redis startup / shutdown)
 - CORS, request-logging, timing middleware
+- Rate limiting
+- Security headers
 - Global exception handlers
 - API v1 router mounting
 - Root health check
@@ -20,6 +22,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.dependencies import close_redis, init_redis
 from app.api.middleware import LoggingMiddleware, RequestIDMiddleware, TimingMiddleware
+from app.api.rate_limit import create_rate_limiter
+from app.api.security_headers import SecurityHeadersMiddleware
 from app.api.routes import api_router
 from app.config import get_settings
 from app.core.exceptions import AppException
@@ -27,6 +31,31 @@ from app.core.logging import get_logger, setup_logging
 from app.database.session import engine
 
 logger = get_logger(__name__)
+
+# ── Request size limit middleware ──────────────────────────────
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    """Limit request body size to prevent DoS."""
+    
+    def __init__(self, app, max_size: int = 1_048_576):  # 1MB default
+        super().__init__(app)
+        self.max_size = max_size
+    
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.max_size:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "status_code": 413,
+                    "message": "Request entity too large",
+                    "detail": f"Maximum request size is {self.max_size} bytes",
+                },
+            )
+        return await call_next(request)
 
 
 # ── Lifespan ──────────────────────────────────────────────────
@@ -92,9 +121,22 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=["X-Request-ID", "X-Process-Time", "X-RateLimit-*"],
     )
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(BodySizeLimitMiddleware, max_size=1_048_576)  # 1MB
+    app.add_middleware(create_rate_limiter(
+        default_requests=100,
+        default_window=60,
+        endpoint_limits={
+            "/api/v1/auth/login": (5, 300),
+            "/api/v1/auth/register": (3, 300),
+            "/api/v1/auth/refresh": (10, 60),
+            "/api/v1/assistant/chat": (20, 60),
+        }
+    ))
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(TimingMiddleware)
     app.add_middleware(RequestIDMiddleware)

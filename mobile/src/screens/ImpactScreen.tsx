@@ -1,7 +1,65 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { impactApi, handleApiError } from '../services/api';
+import { useMobileAuthStore } from '../store/authStore';
 
 export default function ImpactScreen() {
+  const user = useMobileAuthStore((state) => state.user);
+  const [summary, setSummary] = useState<{
+    total_co2e_saved_kg: number;
+    total_sustainable_km: number;
+    total_trips_logged: number;
+    current_tier: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    loadImpactSummary();
+  }, [user]);
+
+  const loadImpactSummary = async () => {
+    if (!user) {
+      setIsDemo(true);
+      setSummary({
+        total_co2e_saved_kg: 0,
+        total_sustainable_km: 0,
+        total_trips_logged: 0,
+        current_tier: 'Eco Starter',
+      });
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await impactApi.getSummary();
+      setSummary(data);
+      setIsDemo(false);
+    } catch (err) {
+      console.warn('Failed to load impact summary:', err);
+      setIsDemo(true);
+      setSummary({
+        total_co2e_saved_kg: 0,
+        total_sustainable_km: 0,
+        total_trips_logged: 0,
+        current_tier: 'Eco Starter',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#25B89A" />
+        <Text style={styles.loadingText}>Loading your impact data...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
@@ -9,54 +67,71 @@ export default function ImpactScreen() {
         <Text style={styles.subtitle}>Verified carbon avoidance & urban health contribution</Text>
       </View>
 
-      {/* Demonstration Banner */}
-      <View style={styles.sampleBadge}>
-        <Text style={styles.sampleBadgeText}>
-          Demonstration Mode: Connect personal commute logging to track your verified savings
-        </Text>
-      </View>
-
-      <View style={styles.summaryGrid}>
-        <View style={styles.statBox}>
-          <Text style={styles.statNum}>42.8</Text>
-          <Text style={styles.statUnit}>kg CO₂e (Sample)</Text>
-          <Text style={styles.statLabel}>Sample Emissions Avoided</Text>
+      {isDemo && (
+        <View style={styles.sampleBadge}>
+          <Text style={styles.sampleBadgeText}>
+            Demonstration Mode: Sign in and log commutes to track your verified savings
+          </Text>
         </View>
+      )}
 
-        <View style={styles.statBox}>
-          <Text style={styles.statNum}>34</Text>
-          <Text style={styles.statUnit}>Trips (Sample)</Text>
-          <Text style={styles.statLabel}>Clean Commutes Logged</Text>
-        </View>
-      </View>
+      {summary && (
+        <>
+          <View style={styles.summaryGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statNum}>{summary.total_co2e_saved_kg.toFixed(1)}</Text>
+              <Text style={styles.statUnit}>kg CO₂e</Text>
+              <Text style={styles.statLabel}>Emissions Avoided</Text>
+            </View>
 
-      {/* Tree Equivalent Card */}
-      <View style={styles.treeCard}>
-        <Text style={styles.treeTitle}>Ecological Impact Model</Text>
-        <Text style={styles.treeDescription}>
-          In this sample demonstration, avoiding 42.8 kg of CO₂e corresponds to the photosynthetic absorption of{' '}
-          <Text style={styles.boldGreen}>2.1 mature urban trees</Text> over a full year according to Central Electricity Authority (CEA) benchmarks.
-        </Text>
-      </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statNum}>{summary.total_sustainable_km.toFixed(1)}</Text>
+              <Text style={styles.statUnit}>km</Text>
+              <Text style={styles.statLabel}>Sustainable Distance</Text>
+            </View>
 
-      {/* Badges / Milestones */}
+            <View style={styles.statBox}>
+              <Text style={styles.statNum}>{summary.total_trips_logged}</Text>
+              <Text style={styles.statUnit}>Trips</Text>
+              <Text style={styles.statLabel}>Clean Commutes</Text>
+            </View>
+          </View>
+
+          <View style={styles.tierCard}>
+            <Text style={styles.tierTitle}>Current Tier</Text>
+            <Text style={styles.tierValue}>{summary.current_tier}</Text>
+          </View>
+
+          <View style={styles.treeCard}>
+            <Text style={styles.treeTitle}>Ecological Impact Model</Text>
+            <Text style={styles.treeDescription}>
+              Avoiding {summary.total_co2e_saved_kg.toFixed(1)} kg of CO₂e corresponds to the photosynthetic absorption of{' '}
+              <Text style={styles.boldGreen}>
+                {(summary.total_co2e_saved_kg / 20.4).toFixed(1)} mature urban trees
+              </Text>{' '}
+              over a full year according to Central Electricity Authority (CEA) benchmarks.
+            </Text>
+          </View>
+        </>
+      )}
+
       <View style={styles.card}>
-        <Text style={styles.cardHeader}>Milestones Preview</Text>
+        <Text style={styles.cardHeader}>How to Improve Your Impact</Text>
         <View style={styles.badgeRow}>
           <View style={styles.badgeItem}>
-            <Text style={styles.badgeIcon}>🌱</Text>
-            <Text style={styles.badgeTitle}>First 10kg</Text>
-            <Text style={styles.badgeStatus}>Sample Preview</Text>
-          </View>
-          <View style={styles.badgeItem}>
             <Text style={styles.badgeIcon}>🚇</Text>
-            <Text style={styles.badgeTitle}>Metro Master</Text>
-            <Text style={styles.badgeStatus}>25+ Trips</Text>
+            <Text style={styles.badgeTitle}>Choose Metro</Text>
+            <Text style={styles.badgeStatus}>Lowest emissions</Text>
           </View>
           <View style={styles.badgeItem}>
-            <Text style={styles.badgeIcon}>🌬️</Text>
-            <Text style={styles.badgeTitle}>Air Guardian</Text>
-            <Text style={styles.badgeStatus}>Preview</Text>
+            <Text style={styles.badgeIcon}>🚲</Text>
+            <Text style={styles.badgeTitle}>Cycle / Walk</Text>
+            <Text style={styles.badgeStatus}>Zero emissions</Text>
+          </View>
+          <View style={styles.badgeItem}>
+            <Text style={styles.badgeIcon}>🚌</Text>
+            <Text style={styles.badgeTitle}>Electric Bus</Text>
+            <Text style={styles.badgeStatus}>Low emissions</Text>
           </View>
         </View>
       </View>
@@ -69,6 +144,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F8F7',
     padding: 16,
+  },
+  loadingBox: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: '#71818A',
+    fontSize: 13,
+    fontWeight: '600',
   },
   header: {
     marginTop: 16,
@@ -128,6 +214,25 @@ const styles = StyleSheet.create({
     color: '#101B20',
     marginTop: 6,
     textAlign: 'center',
+  },
+  tierCard: {
+    backgroundColor: '#173D3B',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  tierTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#25B89A',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  tierValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   treeCard: {
     backgroundColor: '#173D3B',

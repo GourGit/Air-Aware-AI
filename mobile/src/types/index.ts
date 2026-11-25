@@ -1,8 +1,11 @@
 export interface AirQualityReading {
-  aqi: number;
+  aqi: number | null;
   category: string;
-  prominent_pollutant: string;
+  prominent_pollutant: string | null;
   color: string;
+  standard: string;
+  status: 'live' | 'demo' | 'unavailable' | 'estimated_incomplete_data';
+  is_standard_met: boolean;
 }
 
 export interface PollutantDetail {
@@ -13,10 +16,12 @@ export interface PollutantDetail {
 
 export interface AirDataResponse {
   location: {
+    name: string;
     city: string;
-    station_name: string;
-    latitude: number;
-    longitude: number;
+    state: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    station_id: string | null;
   };
   air_quality: AirQualityReading;
   pollutants: Record<string, PollutantDetail>;
@@ -24,7 +29,25 @@ export interface AirDataResponse {
     summary: string;
     precautions: string[];
   };
-  timestamp: string;
+  metadata: {
+    source: string;
+    observed_at: string | null;
+    retrieved_at: string;
+    data_type: 'observed' | 'forecast' | 'demo' | 'unavailable';
+    is_stale: boolean;
+    is_demo: boolean;
+    station_distance_km: number | null;
+    data_freshness: 'fresh' | 'recent' | 'aging' | 'stale' | 'unknown';
+  };
+}
+
+export interface ChatMessageMetadata {
+  intent?: string;
+  recommendations?: string[];
+  sources?: string[];
+  limitations?: string | null;
+  observed_at?: string | null;
+  agents_used?: string[];
 }
 
 export interface ChatMessage {
@@ -33,6 +56,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   agent?: string;
+  metadata?: ChatMessageMetadata;
 }
 
 export interface MobilityOption {

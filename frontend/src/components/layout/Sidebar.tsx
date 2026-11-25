@@ -4,15 +4,7 @@ import {
   LayoutDashboard,
   Wind,
   Map,
-  MessageSquare,
-  CalendarClock,
-  Home,
-  Route,
-  Leaf,
-  Users,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
+  Smartphone,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -26,19 +18,19 @@ interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  mobileOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { label: 'Air Quality', path: '/air-quality', icon: Wind },
   { label: 'Air Map', path: '/map', icon: Map },
-  { label: 'AI Assistant', path: '/assistant', icon: MessageSquare },
-  { label: 'Routine', path: '/routine', icon: CalendarClock },
-  { label: 'Indoor Air', path: '/indoor', icon: Home },
-  { label: 'Mobility', path: '/mobility', icon: Route },
-  { label: 'Impact', path: '/impact', icon: Leaf },
-  { label: 'Community', path: '/community', icon: Users },
-  { label: 'Settings', path: '/settings', icon: Settings },
+  { 
+    label: 'Mobile App', 
+    path: '/assistant', 
+    icon: Smartphone,
+    mobileOnly: true 
+  },
 ];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -115,9 +107,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? (
-            <ChevronRight className="w-5 h-5" />
+            <motion.div className="w-5 h-5" animate={{ rotate: 180 }} transition={{ type: 'spring' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </motion.div>
           ) : (
-            <ChevronLeft className="w-5 h-5" />
+            <motion.div className="w-5 h-5" animate={{ rotate: 0 }} transition={{ type: 'spring' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </motion.div>
           )}
         </button>
       </div>

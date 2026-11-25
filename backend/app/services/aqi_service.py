@@ -1,6 +1,9 @@
 """Official Indian Central Pollution Control Board (CPCB) AQI calculation engine.
 
 Implements the National Air Quality Index (NAQI) standard approved by MoEFCC & CPCB.
+
+Reference: CPCB NAQI Guidelines, Central Pollution Control Board, Ministry of Environment,
+Forest and Climate Change, Government of India.
 """
 
 from __future__ import annotations
@@ -8,8 +11,11 @@ from __future__ import annotations
 from typing import Any
 
 
-# Breakpoints for 24-hr average (except CO and O3 which are 8-hr)
-# (B_low, B_high, I_low, I_high)
+# Official CPCB Breakpoints for 24-hour average concentrations (µg/m³)
+# except CO (8-hour, mg/m³) and O3 (8-hour, µg/m³)
+# Format: (B_low, B_high, I_low, I_high)
+# Source: CPCB NAQI Technical Document
+# Note: B_high is exclusive, B_low is inclusive for boundary handling
 BREAKPOINTS: dict[str, list[tuple[float, float, int, int]]] = {
     "pm25": [
         (0.0, 30.0, 0, 50),
@@ -69,6 +75,28 @@ BREAKPOINTS: dict[str, list[tuple[float, float, int, int]]] = {
     ],
 }
 
+# Pollutant units for CPCB standard
+POLLUTANT_UNITS: dict[str, str] = {
+    "pm25": "µg/m³",
+    "pm10": "µg/m³",
+    "no2": "µg/m³",
+    "so2": "µg/m³",
+    "co": "mg/m³",
+    "o3": "µg/m³",
+    "nh3": "µg/m³",
+}
+
+# Averaging periods for CPCB standard (in hours)
+AVERAGING_PERIODS: dict[str, int] = {
+    "pm25": 24,
+    "pm10": 24,
+    "no2": 24,
+    "so2": 24,
+    "co": 8,
+    "o3": 8,
+    "nh3": 24,
+}
+
 CATEGORY_INFO = {
     "Good": {
         "range": (0, 50),
@@ -83,7 +111,7 @@ CATEGORY_INFO = {
     "Moderate": {
         "range": (101, 200),
         "color": "#FFCC00",
-        "health_advisory": "Breathing discomfort to the people with lungs, asthma and heart diseases.",
+        "health_advisory": "Breathing discomfort to people with lungs, asthma and heart diseases.",
     },
     "Poor": {
         "range": (201, 300),
@@ -102,9 +130,29 @@ CATEGORY_INFO = {
     },
 }
 
+# Minimum pollutants required for official CPCB AQI
+REQUIRED_POLLUTANT_COUNT = 3
+REQUIRED_PARTICULATE_POLLUTANTS = {"pm25", "pm10"}
+
 
 def calculate_sub_index(pollutant: str, concentration: float) -> int | None:
-    """Calculate sub-index for a single pollutant based on CPCB linear interpolation."""
+    """Calculate sub-index for a single pollutant based on CPCB linear interpolation.
+
+    Formula: I = I_low + ((I_high - I_low) / (B_high - B_low)) * (C - B_low)
+
+    Where:
+    - I = sub-index
+    - C = pollutant concentration
+    - B_low, B_high = concentration breakpoints
+    - I_low, I_high = AQI breakpoints corresponding to B_low, B_high
+
+    Args:
+        pollutant: Pollutant name (pm25, pm10, no2, so2, co, o3, nh3)
+        concentration: 24-hour average concentration (8-hr for CO, O3)
+
+    Returns:
+        Sub-index (0-500) or None if pollutant not recognized
+    """
     p = pollutant.lower().replace(".", "").replace(" ", "")
     if p not in BREAKPOINTS:
         return None
@@ -123,7 +171,14 @@ def calculate_sub_index(pollutant: str, concentration: float) -> int | None:
 
 
 def get_cpcb_category(aqi: int) -> tuple[str, str, str]:
-    """Get CPCB Category Name, Hex Color, and Standard Health Advisory."""
+    """Get CPCB Category Name, Hex Color, and Standard Health Advisory.
+
+    Args:
+        aqi: Overall AQI value (0-500)
+
+    Returns:
+        Tuple of (category_name, hex_color, health_advisory)
+    """
     if aqi <= 50:
         cat = "Good"
     elif aqi <= 100:
@@ -141,10 +196,25 @@ def get_cpcb_category(aqi: int) -> tuple[str, str, str]:
     return cat, info["color"], info["health_advisory"]
 
 
-def calculate_cpcb_aqi(pollutant_concentrations: dict[str, float]) -> dict[str, Any]:
+def calculate_cpcb_aqi(
+    pollutant_concentrations: dict[str, float],
+    require_standard: bool = True,
+) -> dict[str, Any]:
     """Compute overall CPCB AQI requiring >=3 pollutants (with PM2.5 or PM10).
 
-    Returns structured calculation result including sub-indices and validation status.
+    CPCB Rules:
+    - Minimum 3 pollutants required
+    - At least one must be PM2.5 or PM10
+    - Sub-indices calculated for each pollutant
+    - Overall AQI = maximum sub-index
+    - If requirements not met, AQI is "estimated" not "official"
+
+    Args:
+        pollutant_concentrations: Dict of pollutant -> concentration
+        require_standard: If True, enforce CPCB minimum requirements
+
+    Returns:
+        Structured calculation result including sub-indices and validation status
     """
     sub_indices: dict[str, int] = {}
     has_particulate = False
@@ -155,13 +225,11 @@ def calculate_cpcb_aqi(pollutant_concentrations: dict[str, float]) -> dict[str, 
         sub_idx = calculate_sub_index(pol, conc)
         if sub_idx is not None:
             sub_indices[pol.lower()] = sub_idx
-            if pol.lower() in ("pm25", "pm2.5", "pm10"):
+            if pol.lower() in REQUIRED_PARTICULATE_POLLUTANTS:
                 has_particulate = True
 
     # CPCB Rule Check: Minimum 3 pollutants with at least one particulate (PM2.5 or PM10)
-    # For resilient software experience, if insufficient data, we calculate estimated max
-    # but explicitly flag is_official_standard_met = False.
-    is_standard_met = len(sub_indices) >= 3 and has_particulate
+    is_standard_met = len(sub_indices) >= REQUIRED_POLLUTANT_COUNT and has_particulate
 
     if not sub_indices:
         return {
@@ -172,6 +240,10 @@ def calculate_cpcb_aqi(pollutant_concentrations: dict[str, float]) -> dict[str, 
             "sub_indices": {},
             "is_standard_met": False,
             "status": "insufficient_data",
+            "missing_requirements": {
+                "min_pollutants": REQUIRED_POLLUTANT_COUNT,
+                "has_particulate": False,
+            },
         }
 
     max_pollutant = max(sub_indices, key=sub_indices.get)  # type: ignore
@@ -185,7 +257,34 @@ def calculate_cpcb_aqi(pollutant_concentrations: dict[str, float]) -> dict[str, 
         "health_advisory": advisory,
         "prominent_pollutant": max_pollutant,
         "sub_indices": sub_indices,
-        "is_standard_met": is_standard_met,
+        "is_standard_met": is_standard_met if require_standard else True,
         "standard": "IN_CPCB",
         "status": "valid" if is_standard_met else "estimated_incomplete_data",
+        "missing_requirements": {
+            "min_pollutants": REQUIRED_POLLUTANT_COUNT if len(sub_indices) < REQUIRED_POLLUTANT_COUNT else None,
+            "has_particulate": has_particulate,
+        },
     }
+
+
+def validate_breakpoint_boundaries() -> list[str]:
+    """Validate breakpoint table for consistency and gaps.
+
+    Returns:
+        List of validation warnings/errors
+    """
+    issues = []
+    for pollutant, brackets in BREAKPOINTS.items():
+        for i, (b_low, b_high, i_low, i_high) in enumerate(brackets):
+            if i > 0:
+                prev_b_high = brackets[i - 1][1]
+                if abs(b_low - prev_b_high) > 0.001:
+                    issues.append(
+                        f"{pollutant}: Gap between brackets {i-1} and {i}: "
+                        f"prev_high={prev_b_high}, curr_low={b_low}"
+                    )
+            if b_low >= b_high:
+                issues.append(f"{pollutant}: Invalid bracket {i}: low={b_low} >= high={b_high}")
+            if i_low >= i_high:
+                issues.append(f"{pollutant}: Invalid AQI range {i}: low={i_low} >= high={i_high}")
+    return issues

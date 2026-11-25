@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
-import api from '../config/api';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { communityApi, handleApiError } from '../services/api';
 import { useMobileAuthStore } from '../store/authStore';
 
 const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
@@ -16,6 +16,8 @@ const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
   ahmedabad: { lat: 23.0225, lng: 72.5714 },
 };
 
+const VALID_CATEGORIES = ['smoke', 'dust', 'waste_burning', 'traffic', 'industrial', 'other'] as const;
+
 function resolveLocationCoordinates(address: string): { lat: number; lng: number } {
   const lower = address.toLowerCase();
   for (const [cityName, coords] of Object.entries(CITY_COORDINATES)) {
@@ -28,30 +30,81 @@ function resolveLocationCoordinates(address: string): { lat: number; lng: number
 
 interface QueuedReport {
   id: string;
-  reportType: string;
+  category: string;
   locationName: string;
   description: string;
   lat: number;
   lng: number;
   createdAt: string;
+  status: 'pending' | 'submitted' | 'failed';
 }
+
+const OFFLINE_QUEUE_KEY = 'airaware_offline_reports';
 
 export default function CommunityScreen() {
   const user = useMobileAuthStore((state) => state.user);
-  const [reportType, setReportType] = useState('Waste Burning');
+  const [category, setCategory] = useState('waste_burning');
   const [locationName, setLocationName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [isDemoSubmission, setIsDemoSubmission] = useState(false);
   const [offlineQueue, setOfflineQueue] = useState<QueuedReport[]>([]);
 
-  const reportTypes = ['Waste Burning', 'Industrial Emissions', 'Construction Dust', 'Heavy Vehicle Smog'];
+  useEffect(() => {
+    loadOfflineQueue();
+  }, []);
 
-  const handleSubmit = async () => {
+  const loadOfflineQueue = async () => {
+    try {
+      const stored = await SecureStore.getItemAsync(OFFLINE_QUEUE_KEY);
+      if (stored) {
+        setOfflineQueue(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.warn('Failed to load offline queue:', err);
+    }
+  };
+
+  const saveOfflineQueue = async (queue: QueuedReport[]) => {
+    try {
+      await SecureStore.setItemAsync(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    } catch (err) {
+      console.warn('Failed to save offline queue:', err);
+    }
+  };
+
+  const validateForm = (): boolean => {
     if (!locationName.trim() || !description.trim()) {
       setError('Please enter a location and brief description.');
+      return false;
+    }
+    if (description.trim().length < 10) {
+      setError('Description must be at least 10 characters.');
+      return false;
+    }
+    if (description.trim().length > 1000) {
+      setError('Description must be 1000 characters or less.');
+      return false;
+    }
+    if (locationName.trim().length < 2) {
+      setError('Location name must be at least 2 characters.');
+      return false;
+    }
+    if (locationName.trim().length > 255) {
+      setError('Location name must be 255 characters or less.');
+      return false;
+    }
+    const coords = resolveLocationCoordinates(locationName);
+    if (coords.lat < -90 || coords.lat > 90 || coords.lng < -180 || coords.lng > 180) {
+      setError('Invalid coordinates resolved from location.');
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
       return;
     }
 
@@ -60,33 +113,33 @@ export default function CommunityScreen() {
 
     const coords = resolveLocationCoordinates(locationName);
     const reportPayload = {
-      report_type: reportType,
-      title: `${reportType} at ${locationName.trim()}`,
+      category,
       description: description.trim(),
       latitude: coords.lat,
       longitude: coords.lng,
-      address: locationName.trim(),
-      severity: 3,
-      user_id: user?.id,
+      approx_location_name: locationName.trim(),
+      observed_at: new Date().toISOString(),
     };
 
     try {
-      await api.post('/community/reports', reportPayload);
-      setIsDemoSubmission(false);
+      await communityApi.submitReport(reportPayload);
       setSubmitted(true);
     } catch (err) {
       console.warn('Live reporting server unavailable; saving to durable offline queue:', err);
+      const apiError = handleApiError(err);
       const queuedItem: QueuedReport = {
         id: `offline-${Date.now()}`,
-        reportType,
+        category,
         locationName: locationName.trim(),
         description: description.trim(),
         lat: coords.lat,
         lng: coords.lng,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'pending',
       };
-      setOfflineQueue((prev) => [...prev, queuedItem]);
-      setIsDemoSubmission(true);
+      const newQueue = [...offlineQueue, queuedItem];
+      setOfflineQueue(newQueue);
+      await saveOfflineQueue(newQueue);
       setSubmitted(true);
     } finally {
       setLoading(false);
@@ -97,8 +150,47 @@ export default function CommunityScreen() {
     setSubmitted(false);
     setLocationName('');
     setDescription('');
-    setIsDemoSubmission(false);
     setError(null);
+  };
+
+  const handleRetryOfflineQueue = async () => {
+    if (offlineQueue.length === 0) return;
+
+    setLoading(true);
+    const newQueue = [...offlineQueue];
+
+    for (let i = 0; i < newQueue.length; i++) {
+      const item = newQueue[i];
+      if (item.status === 'submitted') continue;
+
+      try {
+        await communityApi.submitReport({
+          category: item.category,
+          description: item.description,
+          latitude: item.lat,
+          longitude: item.lng,
+          approx_location_name: item.locationName,
+          observed_at: new Date().toISOString(),
+        });
+        newQueue[i] = { ...item, status: 'submitted' };
+      } catch (err) {
+        newQueue[i] = { ...item, status: 'failed' };
+        console.warn('Failed to sync offline report:', err);
+      }
+    }
+
+    setOfflineQueue(newQueue);
+    await saveOfflineQueue(newQueue);
+    setLoading(false);
+  };
+
+  const categoryLabels: Record<string, string> = {
+    waste_burning: 'Waste Burning',
+    smoke: 'Smoke / Fumes',
+    dust: 'Construction Dust',
+    traffic: 'Heavy Vehicle Smog',
+    industrial: 'Industrial Emissions',
+    other: 'Other',
   };
 
   return (
@@ -108,32 +200,36 @@ export default function CommunityScreen() {
         <Text style={styles.subtitle}>Report localized smoke, dust, and burning to civic authorities</Text>
       </View>
 
-      {/* Offline Queue Badge if reports are queued */}
       {offlineQueue.length > 0 && (
         <View style={styles.queueNotice}>
-          <Text style={styles.queueNoticeTitle}>
-            Durable Offline Storage: {offlineQueue.length} report(s) safely retained locally
-          </Text>
-          <Text style={styles.queueNoticeText}>
-            Latest: {offlineQueue[offlineQueue.length - 1].reportType} at {offlineQueue[offlineQueue.length - 1].locationName} ({offlineQueue[offlineQueue.length - 1].lat.toFixed(4)}, {offlineQueue[offlineQueue.length - 1].lng.toFixed(4)})
-          </Text>
+          <View style={styles.queueNoticeHeader}>
+            <Text style={styles.queueNoticeTitle}>
+              Durable Offline Storage: {offlineQueue.filter((r) => r.status === 'pending').length} pending, {offlineQueue.filter((r) => r.status === 'submitted').length} synced
+            </Text>
+            <TouchableOpacity style={styles.retrySyncBtn} onPress={handleRetryOfflineQueue} disabled={loading}>
+              <Text style={styles.retrySyncBtnText}>Retry Sync</Text>
+            </TouchableOpacity>
+          </View>
+          {offlineQueue.slice(-3).map((item) => (
+            <View key={item.id} style={styles.queueItem}>
+              <Text style={[styles.queueItemType, item.status === 'failed' && styles.queueItemFailed]}>
+                {categoryLabels[item.category] || item.category} at {item.locationName}
+              </Text>
+              <Text style={[styles.queueItemStatus, item.status === 'pending' && styles.queueItemPending, item.status === 'submitted' && styles.queueItemSynced, item.status === 'failed' && styles.queueItemFailed]}>
+                {item.status === 'pending' ? 'Pending sync' : item.status === 'submitted' ? 'Synced' : 'Failed'}
+              </Text>
+            </View>
+          ))}
         </View>
       )}
 
       {submitted ? (
-        <View style={[styles.successCard, isDemoSubmission && styles.demoCard]}>
-          <Text style={[styles.successTitle, isDemoSubmission && styles.demoTitle]}>
-            {isDemoSubmission ? 'Report Stored Locally in Offline Queue' : 'Report Submitted Successfully'}
-          </Text>
+        <View style={[styles.successCard]}>
+          <Text style={styles.successTitle}>Report Submitted Successfully</Text>
           <Text style={styles.successText}>
-            {isDemoSubmission
-              ? 'Your report and resolved coordinates have been durably preserved in the local queue. They will not be lost when submitting additional reports.'
-              : 'Thank you for your civic vigilance. Your report has been submitted to the moderation stream.'}
+            Thank you for your civic vigilance. Your report has been submitted to the moderation stream.
           </Text>
-          <TouchableOpacity
-            style={[styles.resetBtn, isDemoSubmission && styles.demoResetBtn]}
-            onPress={handleClearCurrentFormOnly}
-          >
+          <TouchableOpacity style={styles.resetBtn} onPress={handleClearCurrentFormOnly}>
             <Text style={styles.resetBtnText}>Submit Another Report</Text>
           </TouchableOpacity>
         </View>
@@ -147,13 +243,15 @@ export default function CommunityScreen() {
 
           <Text style={styles.label}>Pollution Source Type:</Text>
           <View style={styles.typeRow}>
-            {reportTypes.map((t) => (
+            {VALID_CATEGORIES.map((c) => (
               <TouchableOpacity
-                key={t}
-                style={[styles.typePill, reportType === t && styles.typePillActive]}
-                onPress={() => setReportType(t)}
+                key={c}
+                style={[styles.typePill, category === c && styles.typePillActive]}
+                onPress={() => setCategory(c)}
               >
-                <Text style={[styles.typeText, reportType === t && styles.typeTextActive]}>{t}</Text>
+                <Text style={[styles.typeText, category === c && styles.typeTextActive]}>
+                  {categoryLabels[c] || c}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -189,6 +287,8 @@ export default function CommunityScreen() {
   );
 }
 
+import * as SecureStore from 'expo-secure-store';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -217,15 +317,52 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 14,
   },
+  queueNoticeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   queueNoticeTitle: {
     color: '#1D4ED8',
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 2,
   },
-  queueNoticeText: {
-    color: '#3B82F6',
+  retrySyncBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#3B82F6',
+    borderRadius: 6,
+  },
+  retrySyncBtnText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  queueItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#BFDBFE',
+  },
+  queueItemType: {
     fontSize: 11,
+    color: '#1D4ED8',
+    fontWeight: '600',
+  },
+  queueItemFailed: {
+    color: '#DC2626',
+  },
+  queueItemStatus: {
+    fontSize: 10,
+    color: '#3B82F6',
+  },
+  queueItemPending: {
+    color: '#F59E0B',
+  },
+  queueItemSynced: {
+    color: '#25B89A',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -315,18 +452,11 @@ const styles = StyleSheet.create({
     borderColor: '#25B89A',
     alignItems: 'center',
   },
-  demoCard: {
-    borderColor: '#F59E0B',
-    backgroundColor: '#FFFBEB',
-  },
   successTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#25B89A',
     marginBottom: 8,
-  },
-  demoTitle: {
-    color: '#B45309',
   },
   successText: {
     fontSize: 13,
@@ -340,9 +470,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
-  },
-  demoResetBtn: {
-    backgroundColor: '#B45309',
   },
   resetBtnText: {
     color: '#FFFFFF',

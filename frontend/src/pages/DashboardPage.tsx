@@ -4,40 +4,75 @@ import { Wind, Shield, Activity, MapPin, AlertTriangle, ArrowRight, RefreshCw, C
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
-import { airQualityService, type AirQualityData } from '@/services/airQuality';
+import { airQualityService, type AirQualityData, type ForecastPoint } from '@/services/airQuality';
+import { api } from '@/services/api';
+
+interface HistoricalPoint {
+  time: string;
+  aqi: number | null;
+  category: string;
+  pm25: number | null;
+  pm10: number | null;
+  no2: number | null;
+  so2: number | null;
+  co: number | null;
+  o3: number | null;
+  dominant_pollutant: string | null;
+}
 
 export default function DashboardPage() {
   const [data, setData] = useState<AirQualityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [city, setCity] = useState('Delhi');
+  const [historicalData, setHistoricalData] = useState<HistoricalPoint[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await airQualityService.getCurrentAir(city);
       setData(res);
+      // Fetch historical data if we have a station ID
+      if (res.location.station_id && res.metadata.data_type === 'observed') {
+        await fetchHistory(res.location.station_id);
+      } else {
+        setHistoricalData([]);
+      }
     } catch (e) {
       console.error(e);
+      setHistoricalData([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchHistory = async (stationId: string) => {
+    setHistoryLoading(true);
+    try {
+      const res = await api.get(`/air/history/${stationId}`, { params: { hours: 24 } });
+      if (res.data?.data && Array.isArray(res.data.data)) {
+        setHistoricalData(res.data.data);
+      }
+    } catch (e) {
+      console.warn('Historical data unavailable:', e);
+      setHistoricalData([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Format historical data for chart
+  const trendData = historicalData.length > 0
+    ? historicalData.map((point) => ({
+        time: new Date(point.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        aqi: point.aqi ?? 0,
+        pm25: point.pm25 ?? 0,
+      }))
+    : [];
+
   useEffect(() => {
     fetchData();
   }, [city]);
-
-  // Mock 24-hr historical trend for visual analytics
-  const trendData = [
-    { time: '00:00', aqi: 280, pm25: 140 },
-    { time: '03:00', aqi: 310, pm25: 162 },
-    { time: '06:00', aqi: 365, pm25: 195 },
-    { time: '09:00', aqi: 342, pm25: 178 },
-    { time: '12:00', aqi: 240, pm25: 115 },
-    { time: '15:00', aqi: 195, pm25: 98 },
-    { time: '18:00', aqi: 275, pm25: 135 },
-    { time: '21:00', aqi: 320, pm25: 170 },
-  ];
 
   return (
     <AppLayout>
@@ -70,7 +105,7 @@ export default function DashboardPage() {
               </select>
             </div>
 
-            <Button variant="outline" size="sm" onClick={fetchData} className="gap-1.5">
+            <Button variant="outline" size="sm" onClick={fetchData} className="gap-1.5" disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
@@ -86,13 +121,17 @@ export default function DashboardPage() {
                   <span>
                     {data.air_quality.status === 'live'
                       ? 'LIVE CPCB STATION'
-                      : data.air_quality.status === 'sample'
-                      ? 'SAMPLE BASELINE STATION'
+                      : data.air_quality.status === 'demo'
+                      ? 'DEMO BASELINE STATION'
+                      : data.air_quality.status === 'estimated_incomplete_data'
+                      ? 'ESTIMATED (Incomplete Data)'
                       : 'STATION DATA UNAVAILABLE'}
                   </span>
                   <span
                     className={`inline-flex items-center gap-1 ${
-                      data.air_quality.status === 'live' ? 'text-mint' : 'text-amber-500'
+                      data.air_quality.status === 'live' ? 'text-mint' :
+                      data.air_quality.status === 'demo' ? 'text-amber-500' :
+                      'text-slate'
                     }`}
                   >
                     {data.air_quality.status === 'live' && (
@@ -100,8 +139,10 @@ export default function DashboardPage() {
                     )}
                     {data.air_quality.status === 'live'
                       ? 'Live CAAQMS'
-                      : data.air_quality.status === 'sample'
-                      ? 'Sample Demonstration'
+                      : data.air_quality.status === 'demo'
+                      ? 'Demo Data'
+                      : data.air_quality.status === 'estimated_incomplete_data'
+                      ? 'Estimated'
                       : 'Unavailable'}
                   </span>
                 </div>
@@ -111,7 +152,7 @@ export default function DashboardPage() {
                     className="text-6xl font-extrabold font-display"
                     style={{ color: data.air_quality.color }}
                   >
-                    {data.air_quality.aqi}
+                    {data.air_quality.aqi ?? '—'}
                   </span>
                   <div>
                     <span
@@ -124,8 +165,13 @@ export default function DashboardPage() {
                       {data.air_quality.category}
                     </span>
                     <p className="text-xs text-slate mt-1.5">
-                      Prominent: <strong className="uppercase text-charcoal dark:text-white">{data.air_quality.prominent_pollutant}</strong>
+                      Prominent: <strong className="uppercase text-charcoal dark:text-white">{data.air_quality.prominent_pollutant ?? 'N/A'}</strong>
                     </p>
+                    {data.air_quality.status === 'estimated_incomplete_data' && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠ AQI estimated from incomplete pollutant data
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -136,7 +182,10 @@ export default function DashboardPage() {
 
               <div className="pt-6 border-t border-border dark:border-forest/30 mt-6 text-xs text-slate flex justify-between items-center">
                 <span>Station: {data.location.name}</span>
-                <span className="text-[10px]">CPCB NAQI</span>
+                <span className="text-[10px]">
+                  {data.metadata.is_demo ? 'Demo' : 'CPCB NAQI'}
+                  {data.metadata.station_distance_km && ` • ~${data.metadata.station_distance_km}km`}
+                </span>
               </div>
             </div>
 
@@ -148,7 +197,7 @@ export default function DashboardPage() {
                   className="rounded-2xl border border-border dark:border-forest/40 bg-white dark:bg-charcoal p-4 shadow-sm flex flex-col justify-between"
                 >
                   <div className="flex justify-between items-center text-xs text-slate uppercase font-semibold">
-                    <span>{key}</span>
+                    <span>{key.toUpperCase()}</span>
                     {pol.sub_index !== undefined && (
                       <span className="text-[10px] bg-muted dark:bg-forest/20 px-2 py-0.5 rounded">
                         Sub-idx: {pol.sub_index}
@@ -169,6 +218,15 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+
+              {Object.keys(data.pollutants).length === 0 && (
+                <div className="lg:col-span-3 rounded-2xl border border-border dark:border-forest/40 bg-white dark:bg-charcoal p-8 text-center">
+                  <p className="text-slate">No pollutant data available</p>
+                  <p className="text-xs text-slate mt-2">
+                    {data.metadata.is_demo ? 'Demo data does not include live measurements' : 'Live measurements unavailable'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -179,38 +237,48 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-base font-bold font-display text-charcoal dark:text-white">
-                  24-Hour AQI & PM2.5 Dispersion Curve
+                  24-Hour AQI & PM2.5 Trend
                 </h3>
-                <p className="text-xs text-slate">Observed hourly variation and ground atmospheric inversion</p>
+                <p className="text-xs text-slate">
+                  {historicalData.length > 0
+                    ? 'Observed hourly measurements from monitoring station'
+                    : 'Historical data unavailable — showing no trend'}
+                </p>
               </div>
               <span className="text-xs font-semibold text-mint bg-mint/10 px-2.5 py-1 rounded-full">
-                Past 24 Hours
+                {historicalData.length > 0 ? 'Past 24 Hours (Live)' : 'No Data'}
               </span>
             </div>
 
             <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#25B89A" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#25B89A" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="time" stroke="#71818A" fontSize={11} />
-                  <YAxis stroke="#71818A" fontSize={11} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#101B20',
-                      borderColor: '#173D3B',
-                      borderRadius: '8px',
-                      color: '#FFFFFF',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Area type="monotone" dataKey="aqi" stroke="#25B89A" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" name="CPCB AQI" />
-                </AreaChart>
-              </ResponsiveContainer>
+              {historicalData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="aqiGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#25B89A" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#25B89A" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" stroke="#71818A" fontSize={11} />
+                    <YAxis stroke="#71818A" fontSize={11} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#101B20',
+                        borderColor: '#173D3B',
+                        borderRadius: '8px',
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Area type="monotone" dataKey="aqi" stroke="#25B89A" strokeWidth={2.5} fillOpacity={1} fill="url(#aqiGrad)" name="CPCB AQI" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate">
+                  <p className="text-center">No historical data available for this station</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -238,14 +306,14 @@ export default function DashboardPage() {
             </div>
 
             <div className="pt-4 border-t border-border dark:border-forest/30 flex gap-2">
-              <Link to="/routine" className="flex-1">
+              <Link to="/assistant" className="flex-1">
                 <Button size="sm" className="w-full bg-mint hover:bg-mint/90 text-white text-xs">
-                  Generate Routine
+                  Get Mobile App
                 </Button>
               </Link>
-              <Link to="/assistant" className="flex-1">
+              <Link to="/map" className="flex-1">
                 <Button variant="outline" size="sm" className="w-full text-xs">
-                  Ask Assistant
+                  View Pollution Map
                 </Button>
               </Link>
             </div>

@@ -1,33 +1,56 @@
-import api from './api';
+export interface PollutantDetail {
+  value: number;
+  unit: string;
+  sub_index?: number;
+}
+
+export interface ForecastPoint {
+  time: string;
+  predicted_aqi: number | null;
+  predicted_category: string;
+  color: string;
+  prominent_pollutant: string | null;
+  is_standard_met: boolean;
+  source: string;
+  data_type: 'forecast';
+  model: string;
+  retrieved_at: string;
+  forecast_valid_at: string;
+}
 
 export interface AirQualityData {
   location: {
     name: string;
     city: string;
-    state: string;
-    latitude: number;
-    longitude: number;
-    station_id: string;
+    state: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    station_id: string | null;
   };
   air_quality: {
-    aqi: number;
+    aqi: number | null;
     category: string;
     color: string;
-    prominent_pollutant: string;
+    prominent_pollutant: string | null;
     standard: string;
-    status: string; // 'live' | 'sample' | 'unavailable'
+    status: 'live' | 'demo' | 'unavailable' | 'estimated_incomplete_data';
+    is_standard_met: boolean;
   };
-  pollutants: Record<string, { value: number; unit: string; sub_index?: number }>;
+  pollutants: Record<string, PollutantDetail>;
   health_advisory: {
     summary: string;
     precautions: string[];
   };
   metadata: {
     source: string;
-    observed_at: string;
+    observed_at: string | null;
     retrieved_at: string;
+    data_type: 'observed' | 'forecast' | 'demo' | 'unavailable';
+    is_stale: boolean;
+    is_demo: boolean;
+    station_distance_km: number | null;
+    data_freshness: 'fresh' | 'recent' | 'aging' | 'stale' | 'unknown';
   };
-  is_sample?: boolean;
 }
 
 export interface Station {
@@ -38,33 +61,38 @@ export interface Station {
   agency: string;
   latitude: number;
   longitude: number;
-  aqi: number;
+  aqi: number | null;
   category: string;
   color: string;
-  prominent_pollutant: string;
+  prominent_pollutant: string | null;
   pollutants: Record<string, number>;
-  last_updated: string;
+  last_updated: string | null;
   source: string;
-  is_sample?: boolean;
+  is_demo: boolean;
+  is_authoritative: boolean;
+  is_sample?: boolean; // Alias for is_demo for backward compatibility
 }
+
+import api from './api';
 
 const FALLBACK_AIR_DATA: Record<string, AirQualityData> = {
   delhi: {
     location: {
-      name: 'Anand Vihar, Delhi — DPCC (Sample)',
+      name: 'Anand Vihar, Delhi — DPCC (Demo Data)',
       city: 'Delhi',
       state: 'Delhi',
       latitude: 28.6508,
       longitude: 77.3152,
-      station_id: 'delhi-anand-vihar',
+      station_id: 'demo-dl-001',
     },
     air_quality: {
       aqi: 342,
       category: 'Very Poor',
       color: '#CC0033',
       prominent_pollutant: 'pm25',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
     },
     pollutants: {
       pm25: { value: 178.0, unit: 'µg/m³', sub_index: 342 },
@@ -73,211 +101,255 @@ const FALLBACK_AIR_DATA: Record<string, AirQualityData> = {
       so2: { value: 19.5, unit: 'µg/m³', sub_index: 24 },
       co: { value: 1.9, unit: 'mg/m³', sub_index: 95 },
       o3: { value: 38.0, unit: 'µg/m³', sub_index: 38 },
+      nh3: { value: 35.0, unit: 'µg/m³', sub_index: 42 },
     },
     health_advisory: {
-      summary: 'Sample Demonstration: Thermal inversion conditions typically elevate particulate concentrations.',
+      summary: 'Demo Data: Very poor air quality. Respiratory illness risk on prolonged exposure.',
       precautions: [
-        'Avoid intense outdoor workouts during morning peaks',
-        'Wear N95/FFP2 respirator when commuting',
-        'Operate indoor HEPA air purification',
+        'Avoid outdoor exercise and strenuous activities.',
+        'Wear certified N95/FFP2 respirator when commuting.',
+        'Use indoor air purifiers with HEPA filters.',
       ],
     },
     metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
+      source: 'Official DPCC CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
     },
-    is_sample: true,
   },
   mumbai: {
     location: {
-      name: 'Bandra Kurla Complex, Mumbai — MPCB (Sample)',
+      name: 'Bandra Kurla Complex, Mumbai — MPCB (Demo Data)',
       city: 'Mumbai',
       state: 'Maharashtra',
       latitude: 19.0657,
-      longitude: 72.8687,
-      station_id: 'mumbai-bkc',
+      longitude: 72.8683,
+      station_id: 'demo-mh-001',
     },
     air_quality: {
       aqi: 185,
       category: 'Moderate',
       color: '#FFCC00',
       prominent_pollutant: 'pm10',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
     },
     pollutants: {
-      pm25: { value: 68.0, unit: 'µg/m³', sub_index: 127 },
-      pm10: { value: 172.0, unit: 'µg/m³', sub_index: 185 },
-      no2: { value: 45.0, unit: 'µg/m³', sub_index: 56 },
-      so2: { value: 12.0, unit: 'µg/m³', sub_index: 15 },
-      co: { value: 1.1, unit: 'mg/m³', sub_index: 55 },
-      o3: { value: 28.0, unit: 'µg/m³', sub_index: 28 },
+      pm25: { value: 112.0, unit: 'µg/m³', sub_index: 185 },
+      pm10: { value: 178.0, unit: 'µg/m³', sub_index: 148 },
+      no2: { value: 48.0, unit: 'µg/m³', sub_index: 60 },
+      so2: { value: 16.5, unit: 'µg/m³', sub_index: 21 },
+      co: { value: 1.2, unit: 'mg/m³', sub_index: 60 },
+      o3: { value: 36.0, unit: 'µg/m³', sub_index: 36 },
+      nh3: { value: 25.0, unit: 'µg/m³', sub_index: 13 },
     },
     health_advisory: {
-      summary: 'Sample Demonstration: Moderate air quality with coastal breeze dispersion.',
+      summary: 'Demo Data: Moderate air quality. Breathing discomfort for sensitive groups.',
       precautions: [
-        'Sensitive groups may experience minor discomfort',
-        'Normal outdoor activities permissible',
+        'People with respiratory/heart conditions should limit outdoor exertion.',
+        'Consider wearing N95 mask during high traffic hours.',
       ],
     },
     metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
+      source: 'Official MPCB CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
     },
-    is_sample: true,
-  },
-  bengaluru: {
-    location: {
-      name: 'BTM Layout / Silk Board, Bengaluru — KSPCB (Sample)',
-      city: 'Bengaluru',
-      state: 'Karnataka',
-      latitude: 12.9166,
-      longitude: 77.6101,
-      station_id: 'bengaluru-silk-board',
-    },
-    air_quality: {
-      aqi: 82,
-      category: 'Satisfactory',
-      color: '#99CC33',
-      prominent_pollutant: 'pm25',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
-    },
-    pollutants: {
-      pm25: { value: 29.0, unit: 'µg/m³', sub_index: 48 },
-      pm10: { value: 64.0, unit: 'µg/m³', sub_index: 64 },
-      no2: { value: 28.0, unit: 'µg/m³', sub_index: 35 },
-      so2: { value: 8.5, unit: 'µg/m³', sub_index: 11 },
-      co: { value: 0.6, unit: 'mg/m³', sub_index: 30 },
-      o3: { value: 22.0, unit: 'µg/m³', sub_index: 22 },
-    },
-    health_advisory: {
-      summary: 'Sample Demonstration: Satisfactory air quality across plateau region.',
-      precautions: ['Air quality is generally acceptable for the general public.'],
-    },
-    metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
-    },
-    is_sample: true,
   },
   kolkata: {
     location: {
-      name: 'Salt Lake / Sector 5, Kolkata — WBPCB (Sample)',
+      name: 'Salt Lake Sector V, Kolkata — WBPCB (Demo Data)',
       city: 'Kolkata',
       state: 'West Bengal',
-      latitude: 22.5802,
-      longitude: 88.4272,
-      station_id: 'kolkata-salt-lake',
+      latitude: 22.5800,
+      longitude: 88.4370,
+      station_id: 'demo-wb-001',
     },
     air_quality: {
-      aqi: 225,
-      category: 'Poor',
-      color: '#FF9933',
+      aqi: 145,
+      category: 'Moderate',
+      color: '#FFCC00',
       prominent_pollutant: 'pm25',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
     },
     pollutants: {
-      pm25: { value: 112.0, unit: 'µg/m³', sub_index: 225 },
-      pm10: { value: 198.0, unit: 'µg/m³', sub_index: 165 },
-      no2: { value: 52.0, unit: 'µg/m³', sub_index: 65 },
-      so2: { value: 16.0, unit: 'µg/m³', sub_index: 20 },
-      co: { value: 1.4, unit: 'mg/m³', sub_index: 70 },
-      o3: { value: 31.0, unit: 'µg/m³', sub_index: 31 },
+      pm25: { value: 88.0, unit: 'µg/m³', sub_index: 145 },
+      pm10: { value: 145.0, unit: 'µg/m³', sub_index: 116 },
+      no2: { value: 42.0, unit: 'µg/m³', sub_index: 53 },
+      so2: { value: 11.2, unit: 'µg/m³', sub_index: 14 },
+      co: { value: 0.85, unit: 'mg/m³', sub_index: 43 },
+      o3: { value: 32.0, unit: 'µg/m³', sub_index: 32 },
+      nh3: { value: 22.0, unit: 'µg/m³', sub_index: 11 },
     },
     health_advisory: {
-      summary: 'Sample Demonstration: Breathing discomfort to people with prolonged exposure.',
-      precautions: ['Reduce prolonged or heavy outdoor exertion.'],
+      summary: 'Demo Data: Moderate air quality. Minor discomfort for sensitive individuals.',
+      precautions: [
+        'Sensitive individuals may experience minor breathing discomfort.',
+        'Normal outdoor activities permissible.',
+      ],
     },
     metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
+      source: 'Official WBPCB CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
     },
-    is_sample: true,
   },
-  chennai: {
+  bengaluru: {
     location: {
-      name: 'Alandur / Chennai Airport, Chennai — TNPCB (Sample)',
-      city: 'Chennai',
-      state: 'Tamil Nadu',
-      latitude: 12.9975,
-      longitude: 80.1915,
-      station_id: 'chennai-alandur',
+      name: 'Silk Board, Bengaluru — KSPCB (Demo Data)',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      latitude: 12.9172,
+      longitude: 77.6228,
+      station_id: 'demo-ka-001',
     },
     air_quality: {
-      aqi: 68,
+      aqi: 94,
       category: 'Satisfactory',
       color: '#99CC33',
       prominent_pollutant: 'pm10',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
     },
     pollutants: {
-      pm25: { value: 24.0, unit: 'µg/m³', sub_index: 40 },
-      pm10: { value: 58.0, unit: 'µg/m³', sub_index: 58 },
-      no2: { value: 22.0, unit: 'µg/m³', sub_index: 28 },
-      so2: { value: 9.0, unit: 'µg/m³', sub_index: 11 },
-      co: { value: 0.5, unit: 'mg/m³', sub_index: 25 },
-      o3: { value: 19.0, unit: 'µg/m³', sub_index: 19 },
+      pm25: { value: 58.0, unit: 'µg/m³', sub_index: 97 },
+      pm10: { value: 94.0, unit: 'µg/m³', sub_index: 94 },
+      no2: { value: 34.0, unit: 'µg/m³', sub_index: 43 },
+      so2: { value: 8.0, unit: 'µg/m³', sub_index: 10 },
+      co: { value: 0.65, unit: 'mg/m³', sub_index: 33 },
+      o3: { value: 28.0, unit: 'µg/m³', sub_index: 28 },
+      nh3: { value: 18.0, unit: 'µg/m³', sub_index: 9 },
     },
     health_advisory: {
-      summary: 'Sample Demonstration: Clean coastal dispersion.',
+      summary: 'Demo Data: Satisfactory air quality. Minor discomfort possible for sensitive people.',
+      precautions: [
+        'Sensitive individuals should consider reducing prolonged outdoor exertion.',
+      ],
+    },
+    metadata: {
+      source: 'Official KSPCB CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
+    },
+  },
+  chennai: {
+    location: {
+      name: 'Alandur, Chennai — TNPCB (Demo Data)',
+      city: 'Chennai',
+      state: 'Tamil Nadu',
+      latitude: 13.0033,
+      longitude: 80.2016,
+      station_id: 'demo-tn-001',
+    },
+    air_quality: {
+      aqi: 74,
+      category: 'Satisfactory',
+      color: '#99CC33',
+      prominent_pollutant: 'pm10',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
+    },
+    pollutants: {
+      pm25: { value: 42.0, unit: 'µg/m³', sub_index: 70 },
+      pm10: { value: 74.0, unit: 'µg/m³', sub_index: 74 },
+      no2: { value: 26.0, unit: 'µg/m³', sub_index: 33 },
+      so2: { value: 7.2, unit: 'µg/m³', sub_index: 9 },
+      co: { value: 0.52, unit: 'mg/m³', sub_index: 26 },
+      o3: { value: 22.0, unit: 'µg/m³', sub_index: 22 },
+      nh3: { value: 15.0, unit: 'µg/m³', sub_index: 8 },
+    },
+    health_advisory: {
+      summary: 'Demo Data: Satisfactory air quality. Clean coastal dispersion.',
       precautions: ['Ideal conditions for outdoor activity.'],
     },
     metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
+      source: 'Official TNPCB CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
     },
-    is_sample: true,
   },
   lucknow: {
     location: {
-      name: 'Talkatora Industrial Area, Lucknow — UPPCB (Sample)',
+      name: 'Talkatora, Lucknow — UPPCB (Demo Data)',
       city: 'Lucknow',
       state: 'Uttar Pradesh',
       latitude: 26.8322,
-      longitude: 80.9011,
-      station_id: 'lucknow-talkatora',
+      longitude: 80.8988,
+      station_id: 'demo-up-001',
     },
     air_quality: {
-      aqi: 312,
-      category: 'Very Poor',
-      color: '#CC0033',
+      aqi: 265,
+      category: 'Poor',
+      color: '#FF9933',
       prominent_pollutant: 'pm25',
-      standard: 'CPCB NAQI (India)',
-      status: 'sample',
+      standard: 'IN_CPCB',
+      status: 'demo',
+      is_standard_met: true,
     },
     pollutants: {
-      pm25: { value: 162.0, unit: 'µg/m³', sub_index: 312 },
-      pm10: { value: 275.0, unit: 'µg/m³', sub_index: 225 },
-      no2: { value: 61.0, unit: 'µg/m³', sub_index: 76 },
-      so2: { value: 18.0, unit: 'µg/m³', sub_index: 22 },
-      co: { value: 1.8, unit: 'mg/m³', sub_index: 90 },
+      pm25: { value: 164.0, unit: 'µg/m³', sub_index: 265 },
+      pm10: { value: 265.0, unit: 'µg/m³', sub_index: 212 },
+      no2: { value: 59.0, unit: 'µg/m³', sub_index: 74 },
+      so2: { value: 18.2, unit: 'µg/m³', sub_index: 23 },
+      co: { value: 1.6, unit: 'mg/m³', sub_index: 80 },
       o3: { value: 35.0, unit: 'µg/m³', sub_index: 35 },
+      nh3: { value: 30.0, unit: 'µg/m³', sub_index: 15 },
     },
     health_advisory: {
-      summary: 'Sample Demonstration: Industrial basin dispersion limit.',
-      precautions: ['Avoid prolonged outdoor exposure.'],
+      summary: 'Demo Data: Poor air quality. Discomfort for most people on prolonged exposure.',
+      precautions: [
+        'Reduce prolonged outdoor activities.',
+        'Wear N95/FFP2 mask when outdoors.',
+        'Keep windows closed during peak traffic hours.',
+      ],
     },
     metadata: {
-      source: 'Official CPCB Historical Profile (Sample Data)',
-      observed_at: '',
-      retrieved_at: '',
+      source: 'Official UPPCB CAAQMS (Demo Data)',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'demo',
+      is_stale: true,
+      is_demo: true,
+      station_distance_km: null,
+      data_freshness: 'unknown',
     },
-    is_sample: true,
   },
 };
 
 const FALLBACK_STATIONS: Station[] = [
   {
-    id: 'sta-sample-1',
-    name: 'Anand Vihar, Delhi — DPCC (Sample)',
+    id: 'demo-dl-001',
+    name: 'Anand Vihar, Delhi — DPCC (Demo Data)',
     city: 'Delhi',
     state: 'Delhi',
     agency: 'Delhi Pollution Control Committee',
@@ -287,97 +359,158 @@ const FALLBACK_STATIONS: Station[] = [
     category: 'Very Poor',
     color: '#CC0033',
     prominent_pollutant: 'pm25',
-    pollutants: { pm25: 178, pm10: 292, no2: 68, so2: 19.5, co: 1.9, o3: 38 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
+    pollutants: { pm25: 178, pm10: 292, no2: 68, so2: 19.5, co: 1.9, o3: 38, nh3: 35 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
   },
   {
-    id: 'sta-sample-2',
-    name: 'Bandra Kurla Complex, Mumbai — MPCB (Sample)',
+    id: 'demo-dl-002',
+    name: 'R K Puram, Delhi — DPCC (Demo Data)',
+    city: 'Delhi',
+    state: 'Delhi',
+    agency: 'DPCC',
+    latitude: 28.5633,
+    longitude: 77.1864,
+    aqi: 265,
+    category: 'Poor',
+    color: '#FF9933',
+    prominent_pollutant: 'pm25',
+    pollutants: { pm25: 142, pm10: 235, no2: 52, so2: 14, co: 1.4, o3: 44, nh3: 28 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
+  },
+  {
+    id: 'demo-mh-001',
+    name: 'Bandra Kurla Complex, Mumbai — MPCB (Demo Data)',
     city: 'Mumbai',
     state: 'Maharashtra',
     agency: 'Maharashtra PCB',
     latitude: 19.0657,
-    longitude: 72.8687,
+    longitude: 72.8683,
     aqi: 185,
     category: 'Moderate',
     color: '#FFCC00',
     prominent_pollutant: 'pm10',
-    pollutants: { pm25: 68, pm10: 172, no2: 45, so2: 12.0, co: 1.1, o3: 28 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
+    pollutants: { pm25: 112, pm10: 178, no2: 48, so2: 16.5, co: 1.2, o3: 36, nh3: 25 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
   },
   {
-    id: 'sta-sample-3',
-    name: 'BTM Layout / Silk Board, Bengaluru — KSPCB (Sample)',
+    id: 'demo-ka-001',
+    name: 'Silk Board, Bengaluru — KSPCB (Demo Data)',
     city: 'Bengaluru',
     state: 'Karnataka',
     agency: 'Karnataka SPCB',
-    latitude: 12.9166,
-    longitude: 77.6101,
-    aqi: 82,
-    category: 'Satisfactory',
-    color: '#99CC33',
-    prominent_pollutant: 'pm25',
-    pollutants: { pm25: 29, pm10: 64, no2: 28, so2: 8.5, co: 0.6, o3: 22 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
-  },
-  {
-    id: 'sta-sample-4',
-    name: 'Salt Lake / Sector 5, Kolkata — WBPCB (Sample)',
-    city: 'Kolkata',
-    state: 'West Bengal',
-    agency: 'West Bengal PCB',
-    latitude: 22.5802,
-    longitude: 88.4272,
-    aqi: 225,
-    category: 'Poor',
-    color: '#FF9933',
-    prominent_pollutant: 'pm25',
-    pollutants: { pm25: 112, pm10: 198, no2: 52, so2: 16.0, co: 1.4, o3: 31 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
-  },
-  {
-    id: 'sta-sample-5',
-    name: 'Alandur / Chennai Airport, Chennai — TNPCB (Sample)',
-    city: 'Chennai',
-    state: 'Tamil Nadu',
-    agency: 'Tamil Nadu PCB',
-    latitude: 12.9975,
-    longitude: 80.1915,
-    aqi: 68,
+    latitude: 12.9172,
+    longitude: 77.6228,
+    aqi: 94,
     category: 'Satisfactory',
     color: '#99CC33',
     prominent_pollutant: 'pm10',
-    pollutants: { pm25: 24, pm10: 58, no2: 22, so2: 9.0, co: 0.5, o3: 19 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
+    pollutants: { pm25: 58, pm10: 94, no2: 34, so2: 8.0, co: 0.65, o3: 28, nh3: 18 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
   },
   {
-    id: 'sta-sample-6',
-    name: 'Talkatora Industrial Area, Lucknow — UPPCB (Sample)',
+    id: 'demo-wb-001',
+    name: 'Salt Lake Sector V, Kolkata — WBPCB (Demo Data)',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    agency: 'West Bengal PCB',
+    latitude: 22.5800,
+    longitude: 88.4370,
+    aqi: 145,
+    category: 'Moderate',
+    color: '#FFCC00',
+    prominent_pollutant: 'pm25',
+    pollutants: { pm25: 88, pm10: 145, no2: 42, so2: 11.2, co: 0.85, o3: 32, nh3: 22 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
+  },
+  {
+    id: 'demo-tn-001',
+    name: 'Alandur, Chennai — TNPCB (Demo Data)',
+    city: 'Chennai',
+    state: 'Tamil Nadu',
+    agency: 'Tamil Nadu PCB',
+    latitude: 13.0033,
+    longitude: 80.2016,
+    aqi: 74,
+    category: 'Satisfactory',
+    color: '#99CC33',
+    prominent_pollutant: 'pm10',
+    pollutants: { pm25: 42, pm10: 74, no2: 26, so2: 7.2, co: 0.52, o3: 22, nh3: 15 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
+  },
+  {
+    id: 'demo-up-001',
+    name: 'Talkatora, Lucknow — UPPCB (Demo Data)',
     city: 'Lucknow',
     state: 'Uttar Pradesh',
     agency: 'UP Pollution Control Board',
     latitude: 26.8322,
-    longitude: 80.9011,
-    aqi: 312,
-    category: 'Very Poor',
-    color: '#CC0033',
+    longitude: 80.8988,
+    aqi: 265,
+    category: 'Poor',
+    color: '#FF9933',
     prominent_pollutant: 'pm25',
-    pollutants: { pm25: 162, pm10: 275, no2: 61, so2: 18.0, co: 1.8, o3: 35 },
-    last_updated: '',
-    source: 'Official CAAQMS Historical Profile (Sample Data)',
-    is_sample: true,
+    pollutants: { pm25: 164, pm10: 265, no2: 59, so2: 18.2, co: 1.6, o3: 35, nh3: 30 },
+    last_updated: null,
+    source: 'Official CAAQMS (Demo Data)',
+    is_demo: true,
+    is_authoritative: false,
   },
 ];
+
+function createUnavailableResponse(city: string | undefined, lat: number | undefined, lng: number | undefined): AirQualityData {
+  return {
+    location: {
+      name: `No Monitoring Station for ${city || 'Location'}`,
+      city: city || 'Unknown',
+      state: 'N/A',
+      latitude: lat || 0,
+      longitude: lng || 0,
+      station_id: `unavailable-${city || 'loc'}`,
+    },
+    air_quality: {
+      aqi: null,
+      category: 'Data Unavailable',
+      color: '#71818A',
+      prominent_pollutant: null,
+      standard: 'IN_CPCB',
+      status: 'unavailable',
+      is_standard_met: false,
+    },
+    pollutants: {},
+    health_advisory: {
+      summary: `Real-time CPCB monitoring data for ${city || 'this location'} is currently unavailable.`,
+      precautions: ['Please select a supported monitoring city or check network connection.'],
+    },
+    metadata: {
+      source: 'Data Unavailable',
+      observed_at: null,
+      retrieved_at: new Date().toISOString(),
+      data_type: 'unavailable',
+      is_stale: true,
+      is_demo: false,
+      station_distance_km: null,
+      data_freshness: 'unknown',
+    },
+  };
+}
 
 export const airQualityService = {
   getCurrentAir: async (city?: string, lat?: number, lng?: number): Promise<AirQualityData> => {
@@ -387,7 +520,7 @@ export const airQualityService = {
         return res.data.data;
       }
     } catch (err) {
-      console.warn('Backend unavailable, selecting sample baseline data:', err);
+      console.warn('Backend unavailable, using demo baseline data:', err);
     }
 
     const cityKey = (city || 'delhi').toLowerCase();
@@ -395,36 +528,7 @@ export const airQualityService = {
       return FALLBACK_AIR_DATA[cityKey];
     }
 
-    // Explicit unavailable response when city has no matched fallback — never silently substitute Delhi!
-    return {
-      location: {
-        name: `No Monitoring Station for ${city || 'Location'}`,
-        city: city || 'Unknown',
-        state: 'N/A',
-        latitude: lat || 0,
-        longitude: lng || 0,
-        station_id: `unavailable-${city || 'loc'}`,
-      },
-      air_quality: {
-        aqi: 0,
-        category: 'Data Unavailable',
-        color: '#71818A',
-        prominent_pollutant: 'N/A',
-        standard: 'CPCB NAQI',
-        status: 'unavailable',
-      },
-      pollutants: {},
-      health_advisory: {
-        summary: `Real-time CPCB monitoring data for ${city || 'this location'} is currently unavailable.`,
-        precautions: ['Please select a supported monitoring city or check network connection.'],
-      },
-      metadata: {
-        source: 'Data Unavailable',
-        observed_at: '',
-        retrieved_at: '',
-      },
-      is_sample: true,
-    };
+    return createUnavailableResponse(city, lat, lng);
   },
 
   getStations: async (city?: string): Promise<Station[]> => {
@@ -434,25 +538,26 @@ export const airQualityService = {
         return res.data.data;
       }
     } catch (err) {
-      console.warn('Backend unavailable, using sample station coordinates:', err);
+      console.warn('Backend unavailable, using demo station data:', err);
     }
 
     if (city && city.trim()) {
       const targetCity = city.trim().toLowerCase();
-      // Only return stations matching the city; return empty array if none match
       return FALLBACK_STATIONS.filter((s) => s.city.toLowerCase() === targetCity);
     }
 
-    // Return full list only for unfiltered request
     return FALLBACK_STATIONS;
   },
 
-  getForecast: async (lat?: number, lng?: number, days = 3) => {
+  getForecast: async (lat?: number, lng?: number, days = 3): Promise<ForecastPoint[] | null> => {
     try {
       const res = await api.get('/air/forecast', { params: { lat, lng, days } });
-      return res.data.data;
+      if (res.data?.data?.forecast) {
+        return res.data.data.forecast;
+      }
     } catch {
-      return null;
+      console.warn('Forecast unavailable');
     }
+    return null;
   },
 };

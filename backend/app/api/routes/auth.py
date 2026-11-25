@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,8 @@ from app.core.security import (
     hash_password,
     verify_password,
     verify_token,
+    _bearer_scheme,
+    get_current_user,
 )
 from app.models.user import User
 from app.schemas.auth import (
@@ -25,6 +28,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.services.token_blacklist import add_token_to_blacklist
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -106,6 +110,9 @@ async def refresh(body: RefreshRequest, db: DBSession) -> TokenResponse:
             detail="Invalid refresh token",
         )
 
+    # Blacklist the old refresh token
+    await add_token_to_blacklist(body.refresh_token)
+
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
 
@@ -117,10 +124,29 @@ async def refresh(body: RefreshRequest, db: DBSession) -> TokenResponse:
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Log out")
-async def logout(user: CurrentUser) -> None:
-    """Log out the current user (client should discard tokens)."""
-    # Stateless JWT — the client simply discards the token.
-    # A Redis-based token blacklist can be added here if needed.
+async def logout(
+    user: CurrentUser,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> None:
+    """Log out the current user by blacklisting their tokens."""
+    # Blacklist the access token
+    await add_token_to_blacklist(credentials.credentials)
+    return None
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT, summary="Delete account")
+async def delete_account(
+    user: CurrentUser,
+    db: DBSession,
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> None:
+    """Permanently delete the current user's account and all associated data."""
+    # Blacklist current tokens
+    await add_token_to_blacklist(credentials.credentials)
+    
+    # Delete user (cascades to related data via FK)
+    await db.delete(user)
+    await db.flush()
     return None
 
 

@@ -1,13 +1,13 @@
 """Pure unit tests for API business logic and route service functions."""
 import pytest
-from app.services.station_service import get_current_air_quality, get_all_stations
+from app.services.station_service import get_current_air_quality_sync, get_all_stations_sync
 from app.services.emission_service import compare_transport_modes
 from app.api.routes.indoor import conduct_indoor_assessment
 from app.schemas.indoor import IndoorAssessmentRequest
 
 
 def test_air_current_service():
-    data = get_current_air_quality(city="Delhi")
+    data = get_current_air_quality_sync(city="Delhi")
     assert data["location"]["city"] == "Delhi"
     assert data["air_quality"]["standard"] == "IN_CPCB"
     assert data["air_quality"]["aqi"] > 0
@@ -15,7 +15,7 @@ def test_air_current_service():
 
 
 def test_stations_list_service():
-    stations = get_all_stations()
+    stations = get_all_stations_sync()
     assert len(stations) >= 6
     assert any(s["city"] == "Delhi" for s in stations)
     assert any(s["city"] == "Kolkata" for s in stations)

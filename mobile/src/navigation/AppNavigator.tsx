@@ -17,7 +17,7 @@ export default function AppNavigator() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard');
 
   if (!isAuthenticated) {
-    return <AuthScreen onLoginSuccess={() => setActiveTab('dashboard')} />;
+    return <AuthScreen onAuthSuccess={() => setActiveTab('dashboard')} />;
   }
 
   const renderActiveScreen = () => {
