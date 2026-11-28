@@ -12,6 +12,7 @@ pydantic-settings>=2.1.0
 # Database
 sqlalchemy[asyncio]>=2.0.23
 asyncpg>=0.29.0
+psycopg[binary]>=3.2,<4
 alembic>=1.13.0
 
 # Cache / Message Broker
